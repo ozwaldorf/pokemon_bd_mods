@@ -1,0 +1,15 @@
+# Private cartridge data, keys, and extracted files
+/dumps/
+/extracted/
+
+# Generated mod output
+/dist/
+
+# Locally cloned/built third-party tools and Python environments
+/.venv/
+
+# Python and Nix output
+__pycache__/
+*.py[cod]
+/result
+/result-*

@@ -1,0 +1,63 @@
+{
+  "nodes": {
+    "il2cppdumper-src": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1720277242,
+        "narHash": "sha256-KU3ClGI3IisRsLtLJ/GzM2pgkl6hmeKrMwW3vf1STws=",
+        "owner": "Perfare",
+        "repo": "Il2CppDumper",
+        "rev": "4741d46ba9cd6159c5d853eb9d6fc48b4bfa2b1a",
+        "type": "github"
+      },
+      "original": {
+        "owner": "Perfare",
+        "repo": "Il2CppDumper",
+        "rev": "4741d46ba9cd6159c5d853eb9d6fc48b4bfa2b1a",
+        "type": "github"
+      }
+    },
+    "libhac-src": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1779968787,
+        "narHash": "sha256-x/y4TW5zWNwRa5d8P7H7p6RqFXGiOeQUSKp9Rauq8+I=",
+        "ref": "refs/heads/main",
+        "rev": "880bd34b784e0f2b964e016d1174d901b2048626",
+        "revCount": 1156,
+        "type": "git",
+        "url": "https://gitlab.com/ryujinx-classic/LibHac.git"
+      },
+      "original": {
+        "rev": "880bd34b784e0f2b964e016d1174d901b2048626",
+        "type": "git",
+        "url": "https://gitlab.com/ryujinx-classic/LibHac.git"
+      }
+    },
+    "nixpkgs": {
+      "locked": {
+        "lastModified": 1789546076,
+        "narHash": "sha256-zVxLZiSnmaaPLwnhj7pwmqe3axBg/C6nG5JZsJMh2g4=",
+        "owner": "NixOS",
+        "repo": "nixpkgs",
+        "rev": "b1b875982b17dabde9b4a37f3e229e74913e6db3",
+        "type": "github"
+      },
+      "original": {
+        "owner": "NixOS",
+        "ref": "nixos-unstable",
+        "repo": "nixpkgs",
+        "type": "github"
+      }
+    },
+    "root": {
+      "inputs": {
+        "il2cppdumper-src": "il2cppdumper-src",
+        "libhac-src": "libhac-src",
+        "nixpkgs": "nixpkgs"
+      }
+    }
+  },
+  "root": "root",
+  "version": 7
+}

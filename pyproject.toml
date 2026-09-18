@@ -1,0 +1,11 @@
+[project]
+name = "pokemon-bd-ultrawide-tools"
+version = "0.1.0"
+description = "Build and audit tools for the Pokémon Brilliant Diamond ultrawide UI mod"
+requires-python = ">=3.12,<3.13"
+dependencies = [
+  "UnityPy==1.25.3",
+]
+
+[tool.uv]
+package = false

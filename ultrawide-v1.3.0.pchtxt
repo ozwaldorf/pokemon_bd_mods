@@ -1,0 +1,335 @@
+@nsobid-94CEAE325C205C4B9D6F7235552F28FD
+
+# Pokémon Brilliant Diamond [0100000011D90000] v1.3.0 - 21:9 Ultrawide Mod
+
+@flag print_values
+@flag offset_shift 0x100
+
+// 21:9 Aspect Ratio optimized for 3440x1440
+// Use stretch to window option
+// Hud is adjusted to 21:9
+
+@enabled
+// Resolution
+00605224 09008052 // mov w9,#0
+00605228 03B48052 // mov w3,#0x5A0 (1440)
+00605234 02AE8152 // mov w2,#0xD70 (3440)
+0060630C 17AE8152 // mov w23,#0xD70 (3440)
+00606310 16B48052 // mov w22,#0x5A0 (1440)
+006063C4 08AE8152 // mov w8,#0xD70
+006063CC 08B48052 // mov w8,#0x5A0
+0061A724 01AE8152 // mov w1,#0xD70 (3440)
+0061A728 02B48052 // mov w2,#0x5A0 (1440)
+// Runtime hooks
+01A0FD74 08BAE597 // Pokémon menu RenderTexture helper
+01BB4C40 FC25DF97 // Pokédex display/background helper
+01BBCF0C 8905DF97 // Chorus/Filter background centering helper
+01FABABC 7B4ACF97 // Title logo/prompt helper
+// UI / animation fixes
+01A39090 A4903D94 // get_position -> get_localPosition
+01A390E4 8F903D94 // get_position -> get_localPosition
+01BB3CD0 0874A852 // mov w8,#0x43A00000 = 320.0f
+01BB3CD4 0401271E // fmov s4,w8
+01BB3CD8 0028241E // fadd s0,s0,s4
+01BB3CDC 004001BD // str s0,[x0,#0x140]
+01BB3CE0 014401BD // str s1,[x0,#0x144]
+01BB3CE4 024801BD // str s2,[x0,#0x148]
+01BB3CE8 034C01BD // str s3,[x0,#0x14C]
+01BB3CEC C0035FD6 // ret
+01BB5304 3B1E2B94 // DOMove -> DOLocalMove
+01BB5340 2C1E2B14 // DOMove -> DOLocalMove
+01BB665C 65192B94 // DOMove -> DOLocalMove
+01BB66B0 50192B94 // DOMove -> DOLocalMove
+01BB68CC 959A3794 // get_position -> get_localPosition
+01BB68E8 C2182B94 // DOMove -> DOLocalMove
+02263734 02102E1E // CanvasScaler: force height matching
+022ED5F8 1F2003D5 // keep persistent full-screen black-clear camera
+// Town Map / Pokédex Habitat Map coordinate fixes
+// Cursor clamp fix: preserve scaled width in s11 until 0x0184E564; set negative half-cell only at 0x0184E568
+// ClampCursorPos reads sizeDelta twice; both width and height reads must be resolution-scaled
+0184CAB0 D1C6EC17 // Townmap.ToCellIconPos -> resolution-scaled helper
+0184D560 3AC4EC17 // Townmap.ToCellPos -> matching inverse helper
+0184D8A8 085EA852 // analog cursor: 60 * 2
+0184E1DC 37C1EC97 // digital +cell Y
+0184E29C 0BC1EC97 // digital -cell Y
+0184E350 DAC0EC97 // digital +cell X
+0184E3D0 BEC0EC97 // digital -cell X
+0184E52C 71C0EC97 // scale RectTransform.sizeDelta for cursor clamp
+0184E59C 55C0EC97 // scale second RectTransform.sizeDelta (Y clamp height) using the same helper
+0184E554 61C0EC97 // scaled cell/clamp constants
+0184E55C 1F2003D5 // helper already sets +half-cell
+0184E568 69C0EC97 // set scaled -half-cell AFTER width is consumed
+0184E914 0838A852 // _snapDistance = 12 * 2
+// Codecave: packed contiguously from 0x0137E430
+0137E42C C0035FD6 // reserve codecave
+// Pokédex compensation helper @ 0x0137E430
+0137E430 FF8300D1 // save stack
+0137E434 E90700F9 // preserve x9
+0137E438 FD7B01A9 // preserve LR
+0137E43C FD430091 // frame
+0137E440 806640F9 // modelViewRawImage
+0137E444 200100B4 // if null -> bg
+0137E448 E1031FAA // IL2CPP arg
+0137E44C 35A74C94 // Component.get_transform
+0137E450 C00000B4 // if null -> bg
+0137E454 00102C1E // RawImage scale X = 0.5
+0137E458 01102C1E // RawImage scale Y = 0.5
+0137E45C 02102E1E // scale Z = 1
+0137E460 E1031FAA // IL2CPP arg
+0137E464 E77E5894 // Transform.set_localScale
+0137E468 809A40F9 // modelViewBgImage
+0137E46C 400100B4 // if null -> done
+0137E470 E1031FAA // IL2CPP arg
+0137E474 2BA74C94 // Component.get_transform
+0137E478 E00000B4 // if null -> done
+0137E47C 0010201E // background scale X = 2
+0137E480 4800A852 // 2.03125f seam correction
+0137E484 0101271E // background scale Y = 2.03125
+0137E488 02102E1E // scale Z = 1
+0137E48C E1031FAA // IL2CPP arg
+0137E490 DC7E5894 // Transform.set_localScale
+0137E494 E90740F9 // restore x9
+0137E498 FD7B41A9 // restore LR
+0137E49C FF830091 // restore stack
+0137E4A0 886640F9 // displaced ldr x8,[x20,#0xC8]
+0137E4A4 C0035FD6 // ret
+// Title scaling helper @ 0x0137E4A8
+0137E4A8 FFC300D1 // save stack
+0137E4AC FD7B02A9 // preserve LR
+0137E4B0 F30F00F9 // preserve x19
+0137E4B4 FD830091 // frame
+0137E4B8 42CD4C94 // GameObject.SetActive (displaced)
+0137E4BC A01240F9 // _logoImage
+0137E4C0 E1031FAA // IL2CPP arg
+0137E4C4 17A74C94 // Component.get_transform
+0137E4C8 0010201E // logo scale X = 2
+0137E4CC 0110201E // logo scale Y = 2
+0137E4D0 02102E1E // scale Z = 1
+0137E4D4 E1031FAA // IL2CPP arg
+0137E4D8 CA7E5894 // Transform.set_localScale
+0137E4DC A01640F9 // _pushImage
+0137E4E0 E1031FAA // IL2CPP arg
+0137E4E4 0FA74C94 // Component.get_transform
+0137E4E8 F30300AA // preserve prompt Transform
+0137E4EC 0010201E // prompt scale X = 2
+0137E4F0 0110201E // prompt scale Y = 2
+0137E4F4 02102E1E // scale Z = 1
+0137E4F8 E1031FAA // IL2CPP arg
+0137E4FC C17E5894 // Transform.set_localScale
+0137E500 E00313AA // prompt Transform
+0137E504 E1031FAA // IL2CPP arg
+0137E508 867B5894 // Transform.get_localPosition
+0137E50C 0028201E // prompt X *= 2
+0137E510 2128211E // prompt Y *= 2
+0137E514 E00313AA // prompt Transform
+0137E518 E1031FAA // IL2CPP arg
+0137E51C AD7B5894 // Transform.set_localPosition
+0137E520 F30F40F9 // restore x19
+0137E524 FD7B42A9 // restore LR
+0137E528 FFC30091 // restore stack
+0137E52C C0035FD6 // ret
+// Chorus/Filter centering helper @ 0x0137E530
+0137E530 F40300AA // displaced mov x20,x0
+0137E534 FF8300D1 // save stack
+0137E538 FD7B01A9 // preserve LR
+0137E53C F50700F9 // preserve x21
+0137E540 FD430091 // frame
+0137E544 803A40F9 // _modelView
+0137E548 E00100B4 // if null -> done
+0137E54C 000C40F9 // _imageModelBg
+0137E550 A00100B4 // if null -> done
+0137E554 E1031FAA // IL2CPP arg
+0137E558 F2A64C94 // Component.get_transform
+0137E55C 400100B4 // if null -> done
+0137E560 F50300AA // background Transform
+0137E564 E1031FAA // IL2CPP arg
+0137E568 6E7B5894 // Transform.get_localPosition
+0137E56C 886BA852 // 220.0f
+0137E570 0301271E // delta X = 220
+0137E574 0028231E // X += 220
+0137E578 E00315AA // background Transform
+0137E57C E1031FAA // IL2CPP arg
+0137E580 947B5894 // Transform.set_localPosition
+0137E584 F50740F9 // restore x21
+0137E588 FD7B41A9 // restore LR
+0137E58C FF830091 // restore stack
+0137E590 C0035FD6 // ret
+// Pokémon RenderTexture supersampling helper @ 0x0137E594
+0137E594 FF8300D1 // save stack
+0137E598 E00700A9 // preserve x0,x1
+0137E59C FD7B01A9 // preserve LR
+0137E5A0 FD430091 // frame
+0137E5A4 68A64C2D // displaced _modelViewSize load
+0137E5A8 68CA40B9 // _modelViewType
+0137E5AC E8000036 // Pokemon flag test
+0137E5B0 0829281E // Pokemon RT width *= 2
+0137E5B4 2929291E // Pokemon RT height *= 2
+0137E5B8 0010201E // background root X = 2
+0137E5BC 0110201E // background root Y = 2
+0137E5C0 02102E1E // background root Z = 1
+0137E5C4 04000014 // jump setscale
+0137E5C8 00102E1E // non-Pokemon X = 1
+0137E5CC 01102E1E // non-Pokemon Y = 1
+0137E5D0 02102E1E // non-Pokemon Z = 1
+0137E5D4 600E40F9 // _modelBgRoot
+0137E5D8 600000B4 // if null -> done
+0137E5DC E1031FAA // IL2CPP arg
+0137E5E0 887E5894 // Transform.set_localScale
+0137E5E4 FD7B41A9 // restore LR
+0137E5E8 E00740A9 // restore x0,x1
+0137E5EC FF830091 // restore stack
+0137E5F0 C0035FD6 // ret
+// Townmap resolution-scaling helpers (packed after existing codecaves)
+// ToCellIconPos @ 0x0137E5F4
+0137E5F4 FF8300D1
+0137E5F8 FD7B01A9
+0137E5FC FD430091
+0137E600 E007012D
+0137E604 001040F9
+0137E608 E1031FAA
+0137E60C ED7A5894
+0137E610 E313412D
+0137E614 05102C1E
+0137E618 6328251E
+0137E61C 8428251E
+0137E620 0510271E
+0137E624 6308251E
+0137E628 8408251E
+0137E62C 6328231E
+0137E630 8428241E
+0137E634 0028231E
+0137E638 2138241E
+0137E63C FD7B41A9
+0137E640 FF830091
+0137E644 C0035FD6
+// ToCellPos @ 0x0137E648
+0137E648 FF8300D1
+0137E64C FD7B01A9
+0137E650 FD430091
+0137E654 E007012D
+0137E658 001040F9
+0137E65C E1031FAA
+0137E660 D87A5894
+0137E664 E313412D
+0137E668 6338201E
+0137E66C 2438241E
+0137E670 0510271E
+0137E674 6318251E
+0137E678 8418251E
+0137E67C 0510201E
+0137E680 6318251E
+0137E684 8418251E
+0137E688 E40300BD
+0137E68C 6040201E
+0137E690 5CE94C94
+0137E694 E00700B9
+0137E698 E00340BD
+0137E69C 59E94C94
+0137E6A0 E80740B9
+0137E6A4 0100221E
+0137E6A8 0001221E
+0137E6AC FD7B41A9
+0137E6B0 FF830091
+0137E6B4 C0035FD6
+// StepPositive @ 0x0137E6B8
+0137E6B8 0B10271E
+0137E6BC 6B292B1E
+0137E6C0 6141201E
+0137E6C4 C0035FD6
+// StepNegative @ 0x0137E6C8
+0137E6C8 0B10371E
+0137E6CC 6B292B1E
+0137E6D0 6141201E
+0137E6D4 C0035FD6
+// ClampConstants @ 0x0137E6D8
+0137E6D8 0010271E
+0137E6DC 0028201E
+0137E6E0 0C10251E
+0137E6E4 8C292C1E
+0137E6E8 C0035FD6
+0137E6EC 1F2003D5
+// ClampSizeDelta @ 0x0137E6F0
+0137E6F0 FD7BBFA9
+0137E6F4 FD030091
+0137E6F8 C65F4C94
+0137E6FC 0028201E
+0137E700 2128211E
+0137E704 FD7BC1A8
+0137E708 C0035FD6
+// ClampNegativeHalf @ 0x0137E70C
+0137E70C 0B10371E
+0137E710 C0035FD6
+// Poketch cursor screen-space scaling fix
+01E68A98 4880A852 // Poketch button Y reach 260 -> 520 (2x)
+01E68AC0 8871A852 // Poketch button X reach 140 -> 280 (2x)
+01E698B0 1F2003D5 // Poketch cursor half-width: 0.5W -> 1.0W
+01E698C8 1F2003D5 // Poketch cursor half-height: 0.5H -> 1.0H
+// Post-catch UIZukanRegister local-coordinate fixes
+01A3D834 BB7E3D94 // Transform.get_position -> get_localPosition
+01BB3C1C C1A53714 // Transform.get_position -> get_localPosition
+// Post-catch model-view lifecycle reset
+01BB4B9C 21008052 // Zukan SetModelView: Clear(false) -> Clear(true)
+// Context-safe post-catch correction
+01A3D40C C504E597 // UIZukanRegister.OnUpdate -> post-catch-only helper
+// Post-catch correction gated by UIZukanRegister.isWaitUpdate @ 0x0137E720
+0137E720 68724239
+0137E724 A8020035
+0137E728 FD7BBEA9
+0137E72C F40B00F9
+0137E730 FD030091
+0137E734 743E40F9
+0137E738 D40100B4
+0137E73C 805E40F9
+0137E740 800100B4
+0137E744 001040F9
+0137E748 400100B4
+0137E74C E1031FAA
+0137E750 74A64C94
+0137E754 E00000B4
+0137E758 00102E1E
+0137E75C 01102E1E
+0137E760 02102E1E
+0137E764 E1031FAA
+0137E768 267E5894
+0137E76C 0D000094
+0137E770 F40B40F9
+0137E774 FD7BC2A8
+0137E778 603E40F9
+0137E77C C0035FD6
+// Skip hidden post-catch description-panel update while child window is active
+01A3D41C D904E597 // BL 0x0137E780 instead of direct ZukanDescriptionPanel.OnUpdateModelView
+// isWaitUpdate gate for descriptionPanel.OnUpdateModelView @ 0x0137E780
+0137E780 68724239
+0137E784 48000035
+0137E788 4AD52014
+0137E78C C0035FD6
+// Post-catch UI camera-mode restore @ 0x0137E7A0
+0137E7A0 FD7BBEA9
+0137E7A4 F40B00F9
+0137E7A8 FD030091
+0137E7AC D4BF0190
+0137E7B0 945241F9
+0137E7B4 800240F9
+0137E7B8 268F3E94
+0137E7BC C00000B4
+0137E7C0 001040F9
+0137E7C4 800000B4
+0137E7C8 21008052
+0137E7CC E2031FAA
+0137E7D0 54431A94
+0137E7D4 603E40F9
+0137E7D8 F40B40F9
+0137E7DC FD7BC2A8
+0137E7E0 C0035FD6
+// PC Box party-panel PokemonIcon X-coordinate fix
+01AAEBA0 88B93B94 // BoxItem.Select: root get_localPosition -> get_position
+01AAEBBC 4841201E // BoxItem.Select: parentWorldX + rootLocalX -> rootWorldX
+@stop
+
+@Fl4sh_#9174
+https://github.com/Fl4sh9174
+https://Ko-fi.com/Fl4sh9174
+
+0137e42c C0035FD6 // ret
+codecave at 710137e430-710137e820
+01fa9138 17A08052 // alternative title screen
