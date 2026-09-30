@@ -128,6 +128,9 @@ PIVOT_POLICIES = {
 
 ANCHORED_POSITION_OVERRIDES = {
     "Poketch/Window/Poketch": poketch_position(POKETCH_SMALL_SCALE),
+    # The texture patch moves the printed slots alongside the party cards:
+    # 24 units left and 65 down, centering the six decorated rows vertically.
+    "LevelUp/Window/Content": (30.0, -82.0),
 }
 
 # Move all trainer-intro artwork together inside the runtime-animated plate.
@@ -393,6 +396,95 @@ def is_skipped(path: str) -> bool:
     return any(path == prefix or path.startswith(prefix + "/") for prefix in SKIP_AUTO_PREFIXES)
 
 
+def patch_exp_backdrop(env) -> list[dict]:
+    """Move the printed EXP slots without moving the surrounding paper frame."""
+    from UnityPy.export.Texture2DConverter import image_to_texture2d
+
+    sprite = next(
+        obj.read() for obj in env.objects
+        if obj.type.name == "Sprite" and obj.peek_name() == "cmn_pl_expgain_01"
+    )
+    atlas = next(
+        obj.read() for obj in env.objects
+        if obj.type.name == "SpriteAtlas" and obj.peek_name() == "SharedUI"
+    )
+    data = next(value for key, value in atlas.m_RenderDataMap if key == sprite.m_RenderDataKey)
+    texture = data.texture.read()
+    if (texture.m_Width, texture.m_Height, texture.m_TextureFormat) != (2048, 2048, 50):
+        raise ValueError("Unexpected EXP backdrop atlas dimensions or ASTC format")
+    rect = data.textureRect
+    if not (near(rect.x, 0) and near(rect.y, 1207.076171875)
+            and near(rect.width, 490.92388916015625)
+            and near(rect.height, 720.9238891601562)):
+        raise ValueError("Unexpected EXP backdrop atlas placement")
+
+    image = texture.image.convert("RGBA")
+    paper = image.crop((0, 120, 491, 841))
+    moved = paper.copy()
+
+    def clean_pixel(x: int, y: int) -> tuple[int, ...]:
+        # The paper and cyan border have a slow vertical gradient. Recover
+        # the strip beneath the old slots from the clear gaps above/below.
+        for index in range(6):
+            # Include antialiased white outlines, not only the gray bodies.
+            start, end = 18 + 94 * index, 106 + 94 * index
+            if start <= y < end:
+                low, high = start - 3, end + 2
+                a, b = paper.getpixel((x, low)), paper.getpixel((x, high))
+                weight = (y - low) / (high - low)
+                return tuple(round(v + (w - v) * weight) for v, w in zip(a, b))
+        return paper.getpixel((x, y))
+
+    # Move the printed paper artwork by the same 24 pixels as the cards.
+    # Leave the outer top/bottom frame and right-hand cyan border in place.
+    moved.paste(paper.crop((25, 4, 448, 717)), (1, 4))
+    for y in range(4, 717):
+        background = clean_pixel(430, y)
+        for x in range(448, 465):
+            old, clean = paper.getpixel((x, y)), clean_pixel(x, y)
+            # The old slot's end overlaps the cyan border. Carry its shading
+            # onto plain paper rather than copying the cyan tint leftward.
+            shade = sum(old[:3]) / max(1, sum(clean[:3]))
+            moved.putpixel((x - 24, y), tuple(min(255, round(c * shade)) for c in background[:3]) + (255,))
+            moved.putpixel((x, y), clean)
+        for x in range(441, 448):
+            moved.putpixel((x, y), background)
+    # Center the printed rows vertically together with their UI cards.
+    # Fill the exposed top strip with clean paper; retain the outer frame.
+    moved.paste(moved.crop((1, 4, 448, 652)), (1, 69))
+    for y in range(4, 69):
+        # Continue the original ten-pixel stripe pattern at the translated
+        # phase. Sampling the right edge alone loses its faded-out lines.
+        source_y = 10 + (y - 65) % 10
+        stripe = paper.getpixel((30, source_y))
+        plain = paper.getpixel((430, source_y))
+        for x in range(1, 448):
+            fade = max(0.0, min(1.0, (x - 380) / 50))
+            background = tuple(round(a + (b - a) * fade) for a, b in zip(stripe, plain))
+            moved.putpixel((x, y), background)
+    # Preserve the entire frame and its transparent lower shadow. Restrict
+    # re-encoding to whole ASTC blocks inside those untouched border rows.
+    moved.paste(paper.crop((0, 0, 491, 8)), (0, 0))
+    moved.paste(paper.crop((0, 704, 491, 721)), (0, 704))
+    image.paste(moved, (0, 120))
+
+    # Re-encode only the 6x6 ASTC blocks containing the edited paper region.
+    # All other atlas blocks retain their original compressed bytes.
+    encoded, _ = image_to_texture2d(image.crop((0, 128, 468, 824)), 50)
+    original = bytearray(texture.get_image_data())
+    full_stride, patch_stride = 342 * 16, 78 * 16
+    for row in range(116):
+        target = (204 + row) * full_stride
+        original[target:target + patch_stride] = encoded[row * patch_stride:(row + 1) * patch_stride]
+    texture.image_data = bytes(original)
+    texture.m_StreamData.path = ""
+    texture.m_StreamData.offset = 0
+    texture.m_StreamData.size = 0
+    texture.save()
+    return [{"path": "SharedUI/cmn_pl_expgain_01", "path_id": data.texture.path_id,
+             "action": "texture_printed_slots_left_24_down_65_restore_border"}]
+
+
 def patch_bundle(source: Path, destination: Path) -> list[dict]:
     env = UnityPy.load(str(source))
     changes = []
@@ -431,6 +523,11 @@ def patch_bundle(source: Path, destination: Path) -> list[dict]:
             if path in ANCHORED_POSITION_X_OFFSETS:
                 rect.m_AnchoredPosition.x += ANCHORED_POSITION_X_OFFSETS[path]
             action = f"local_scale_{sx:g}x{sy:g}"
+        elif path in ANCHORED_POSITION_OVERRIDES:
+            x, y = ANCHORED_POSITION_OVERRIDES[path]
+            rect.m_AnchoredPosition.x = x
+            rect.m_AnchoredPosition.y = y
+            action = f"position_{x:g}_{y:g}"
         elif path in SIZE_X_OVERRIDES:
             rect.m_SizeDelta.x = SIZE_X_OVERRIDES[path]
             action = f"size_x_{SIZE_X_OVERRIDES[path]:g}"
@@ -644,6 +741,10 @@ def patch_bundle(source: Path, destination: Path) -> list[dict]:
                 }
             )
         clip.save()
+
+    if source.name == "sharedui" and source.parent.name == "shareduiassets":
+        for change in patch_exp_backdrop(env):
+            changes.append({"bundle": str(source), **change})
 
     if changes:
         destination.parent.mkdir(parents=True, exist_ok=True)
