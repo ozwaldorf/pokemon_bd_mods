@@ -185,12 +185,15 @@ SIZE_X_OVERRIDES = {
     "Poketch/Window": ULTRAWIDE_WIDTH,
     # The description's brown panel grows with the status-page background.
     # Expand its striped paper and sliced frame together around the existing
-    # preview center. Leave a narrow brown border and the square model output
-    # at its original size, so the Pokemon itself is not stretched.
+    # preview center. The 42-unit sliced frame then spans 1068 units, matching
+    # the left panel. Widen the RawImage too: PokemonModelView uses its rect
+    # to set RenderTexture dimensions and camera aspect. Keeping its height
+    # preserves the Pokemon's proportions and vertical framing while revealing
+    # the paper across the entire wider output instead of clipping it square.
     **{
-        f"{window}/Window/ZukanDescriptionPanel/ModelViewParent/ModelView{child}": 990.0
+        f"{window}/Window/ZukanDescriptionPanel/ModelViewParent/ModelView{child}": 1026.0
         for window in ("Zukan", "ZukanRegister")
-        for child in ("", "/Offset", "/Offset/BG")
+        for child in ("", "/Offset", "/Offset/BG", "/RawImageParent/RawImage")
     },
     # Extend only the ocean backing; keep map tiles and habitat coordinates
     # at their authored scale inside the wider clipping frame.
