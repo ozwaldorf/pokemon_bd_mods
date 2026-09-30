@@ -1,6 +1,6 @@
 # Party Pokémon for Hidden Moves
 
-A native Surf and Waterfall prototype for Pokémon Brilliant Diamond v1.3.0, title
+A native Surf, Waterfall, and Rock Climb prototype for Pokémon Brilliant Diamond v1.3.0, title
 `0100000011D90000`, build `94CEAE325C205C4B9D6F7235552F28FD`.
 
 The mod picks the first non-egg party member that knows **Surf**, loads its
@@ -17,7 +17,48 @@ Without a Waterfall user, the vanilla helper is retained for the climb. Automati
 downhill travel retains the Surf mount. Both moves share the saved placements,
 movement anchor, and live debug configuration.
 
-English Surf and Waterfall success messages name the selected party Pokémon
+Rock Climb's summoning preview and both uphill and downhill traversal use the
+first non-egg party member that knows Rock Climb (move 431). The replacement
+follows the same Bibarel anchor and visibility, starting on land and releasing
+the model when the climb ends. Missing users or failed model loads retain the
+vanilla helper. Rock Climb has a separate saved placement table so cliff
+corrections do not change Surf or Waterfall. Its fit still needs an in-game check, especially
+for species without a saved placement.
+
+`rock-climb-candidates.json` records the 92 BDSP TM100 learners, plus Smeargle
+through Sketch. The TM list matches the owned game's compatibility data and
+[Serebii's BDSP-specific table](https://www.serebii.net/attackdex-swsh/rockclimb.shtml)
+exactly. All 93 have field models; 62 lacked a saved Surf placement when checked.
+Geodude now has a larger geometry-based starting placement, which still needs
+an in-game check. Rock Climb diagnostics log the selected species, requested
+visibility, hierarchy visibility, world position, and inherited scale when
+the model attaches or its visibility changes.
+
+The 61 remaining species now have geometry-based starting placements in
+`placements.json`. Run `.venv/bin/python scripts/analyze_rock_climb.py` to inspect
+the meshes and skeletons again; add `--apply` to save missing profiles, or
+`--apply --refresh-estimates` to recalculate generated profiles that have not
+been manually changed. Existing user adjustments are preserved. Reports go to
+`/tmp/hidden-moves-rock-climb-analysis/`. Estimates account for torso skin
+weights, body posture, evolutionary relatives, and rider contact relative to
+the selected calibration model. All estimates still need live verification; unusual rigs and
+long silhouettes are flagged in the report.
+
+Graveler's later wall-clearance adjustments are applied to the Rock Climb
+contact point for 91 other models; Geodude and Graveler retain their manual
+settings. The calibration changes offsets using each model's torso surface,
+saved scale and tilt. It preserves the water placement table. The report is
+`/tmp/hidden-moves-rock-climb-calibration/report.txt`. To recalibrate from another
+tuned model, run `.venv/bin/python scripts/calibrate_rock_climb.py --reference 75 --apply`.
+Models manually adjusted in Rock Climb debug mode are protected from recalibration.
+
+Use `scripts/debug_mount.py --move rock-climb set --model 75` to tune cliff
+placements, or `--move surf` for Surf/Waterfall. The debug file retains that
+scope for subsequent `set` commands, and the native parser ignores its scope
+comment. The current debug override applies live; compiled party selection
+chooses the appropriate placement table for each move.
+
+English Surf, Waterfall, and Rock Climb success messages name the selected party Pokémon
 (including its nickname) instead of a wild Bibarel. Messages are cloned per use;
 without an eligible user, the vanilla wording remains. Other languages and fixed
 debug model overrides retain their original wording.
@@ -38,8 +79,8 @@ Stationary Surf placements have been checked in Eden for 90 additional models,
 with 37 earlier profiles retained. Movement and full animation cycles still
 need verification.
 
-This version replaces the Surf/Waterfall mount and redirects their summoning
-cut-ins to the first party user of the corresponding move. Fly, Rock Climb,
+This version replaces the Surf/Waterfall/Rock Climb mount and redirects their summoning
+cut-ins to the first party user of the corresponding move. Fly,
 the other helpers, and dialogue in other languages
 remain future work. The replacement follows the helper's visibility during
 boarding and swimming. Bibarel is suppressed while the boarding model loads,
@@ -103,7 +144,11 @@ and outfit changes. Also confirm that a party without Surf retains Bibarel.
 Waterfall tests cover different Surf/Waterfall users, a shared user without
 reloading, egg exclusion, missing users, pending-load cancellation, preview
 selection and returning to Surf. The user confirmed uphill traversal and
-party-member slide-ins in Eden. The new dialogue still needs an in-game check.
+party-member slide-ins and English dialogue in Eden. Rock Climb tests cover
+starting on land, egg exclusion, repeated command frames, boarding visibility,
+completion on land, canceled loads, failed assets, missing users, preview
+selection, area-change cleanup, and English dialogue. Rock Climb still needs
+in-game verification of ascent, descent, and placement.
 Native diagnostics appear as `HiddenMoves:` messages through the emulator's
 debug output when that logging is enabled.
 

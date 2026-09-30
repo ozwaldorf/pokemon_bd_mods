@@ -2,6 +2,7 @@
 #include "signatures.hpp"
 #include "placements.hpp"
 #include "debug_config.hpp"
+#include <cstdio>
 
 namespace {
 using namespace game;
@@ -26,11 +27,25 @@ void log(const char* message) {
 
 void set_original_visibility(Object renderer, bool visible);
 void update_visibility();
+void trace_climb_model() {
+    if (traversal_move != 431 || session.phase != Phase::Ready || !alive(session.model.get())) return;
+    Object model = session.model.get();
+    Object transform = call<Object>(0x26b18d0, model, nullptr);
+    const Vector3 position = call<Vector3>(0x299d1c0, transform, nullptr);
+    const Vector3 scale = call<Vector3>(0x299f5c0, transform, nullptr);
+    char message[256];
+    std::snprintf(message, sizeof(message),
+        "HiddenMoves: Rock Climb model species=%d visible=%d hierarchy=%d world=(%.2f,%.2f,%.2f) scale=(%.2f,%.2f,%.2f)\n",
+        session.species, session.visible, call<bool>(0x26b1a60, model, nullptr),
+        position.x, position.y, position.z, scale.x, scale.y, scale.z);
+    log(message);
+}
+
 void apply_placement() {
     Object model = session.model.get();
     if (!alive(model)) return;
     Object transform = call<Object>(0x26b18d0, model, nullptr);
-    const auto placement = session.debug.enabled ? session.debug.placement : placement_for(session.species);
+    const auto placement = session.debug.enabled ? session.debug.placement : placement_for(session.species, traversal_move);
     call<void>(0x299d3d0, transform, placement.offset, nullptr);
     call<void>(0x299d770, transform, placement.rotation, nullptr);
     call<void>(0x299e000, transform, placement.scale, nullptr);
@@ -65,7 +80,7 @@ void stop() {
 void begin(Object player) {
     if (session.phase != Phase::Empty || !alive(player)) return;
     session.owner.set(player);
-    session.boarding = traversal_move == 127 || !call<bool>(0x1dac820, player, nullptr);
+    session.boarding = traversal_move != 57 || !call<bool>(0x1dac820, player, nullptr);
     session.phase = Phase::Failed; // At most one attempt per traversal session.
     session.debug = debug_mount::state.config;
     const bool override_model = session.debug.enabled && std::strcmp(session.debug.model, "party") != 0;
@@ -92,21 +107,30 @@ void begin(Object player) {
     }
     session.phase = Phase::Loading;
     if (session.boarding) set_original_visibility(renderer, false);
-    log(traversal_move == 127 ? "HiddenMoves: loading first party Waterfall user's field model\n"
+    log(traversal_move == 431 ? "HiddenMoves: loading first party Rock Climb user's field model\n"
+        : traversal_move == 127 ? "HiddenMoves: loading first party Waterfall user's field model\n"
                              : "HiddenMoves: loading first party Surf user's field model\n");
+}
+
+bool traversal_active(Object player) {
+    return traversal_move == 431 || call<bool>(0x1dac820, player, nullptr);
 }
 
 void select_traversal(int move) {
     if (traversal_move == move) return;
     traversal_move = move;
-    // The same party member can know both moves. Keep its visual and graph.
+    // The same party member can know several moves. Keep its visual and graph.
     const auto& config = debug_mount::state.config;
     if (session.phase == Phase::Ready &&
         ((config.enabled && std::strcmp(config.model, "party")) ||
-         (session.member.get() && session.member.get() == first_user(move)))) return;
+         (session.member.get() && session.member.get() == first_user(move)))) {
+        apply_placement(); // A shared user can have different water/cliff placements.
+        return;
+    }
     Object player = session.owner.get();
     if (player) stop();
-    if (player && call<bool>(0x1dac820, player, nullptr)) begin(player);
+    if (!player && move == 431) player = call<Object>(0x1f0a9e0, nullptr);
+    if (alive(player) && traversal_active(player)) begin(player);
 }
 
 void poll() {
@@ -186,12 +210,14 @@ void poll() {
     session.request.clear();
     session.phase = Phase::Ready;
     update_visibility();
-    log("HiddenMoves: Surf replacement attached\n");
+    log("HiddenMoves: traversal replacement attached\n");
+    trace_climb_model();
 }
 
 HOOK_DEFINE_TRAMPOLINE(RendererVisibility) {
     static void Callback(Object renderer, bool visible, void* method) {
         if (renderer == session.renderer.get() && session.owner.get()) {
+            const bool changed = session.visible != visible;
             session.visible = visible;
             if (session.phase == Phase::Loading && session.boarding) {
                 Orig(renderer, false, method);
@@ -200,6 +226,7 @@ HOOK_DEFINE_TRAMPOLINE(RendererVisibility) {
             if (session.phase == Phase::Ready && alive(session.model.get())) {
                 active(session.model.get(), visible);
                 Orig(renderer, false, method);
+                if (changed) trace_climb_model();
                 return;
             }
         }
@@ -227,9 +254,9 @@ HOOK_DEFINE_TRAMPOLINE(CutInCommand) {
             else if (type == 2) move = call<int>(0x2ccaca0, field<int>(args, 0x2c), nullptr);
         }
         const int previous = traversal_cut_in;
-        traversal_cut_in = move == 57 || move == 127 ? move : 0;
+        traversal_cut_in = move == 57 || move == 127 || move == 431 ? move : 0;
         if (traversal_cut_in) debug_mount::update(0.5f);
-        if (traversal_cut_in == 127) select_traversal(127);
+        if (traversal_cut_in == 127 || traversal_cut_in == 431) select_traversal(traversal_cut_in);
         bool result = Orig(manager, method);
         traversal_cut_in = previous;
         return result;
@@ -260,7 +287,8 @@ HOOK_DEFINE_TRAMPOLINE(CutInLoad) {
                 // Let the game's PokemonParam overload preserve form/sex/shiny,
                 // animation selection, cut-in framing, and request lifetime.
                 call<void>(0x2cc7620, cut_in, member, nullptr);
-                log(traversal_cut_in == 127 ? "HiddenMoves: Waterfall cut-in uses first party Waterfall user\n"
+                log(traversal_cut_in == 431 ? "HiddenMoves: Rock Climb cut-in uses first party Rock Climb user\n"
+                    : traversal_cut_in == 127 ? "HiddenMoves: Waterfall cut-in uses first party Waterfall user\n"
                                            : "HiddenMoves: Surf cut-in uses first party Surf user\n");
                 return;
             }
@@ -278,9 +306,24 @@ HOOK_DEFINE_TRAMPOLINE(WaterfallCommand) {
     }
 };
 
+HOOK_DEFINE_TRAMPOLINE(RockClimbCommand) {
+    static bool Callback(Object manager, void* method) {
+        select_traversal(431);
+        // Unlike Waterfall, climbing starts on land and never sets IsSwim.
+        // Also handle commands reached without a preceding cut-in.
+        if (session.phase == Phase::Empty) begin(call<Object>(0x1f0a9e0, nullptr));
+        const bool complete = Orig(manager, method);
+        if (complete) {
+            stop(); // The command has hidden Bibarel before completing.
+            traversal_move = 57;
+        }
+        return complete;
+    }
+};
+
 HOOK_DEFINE_TRAMPOLINE(TraversalMessage) {
     static void Callback(Object parser, Object label, int language, void* method) {
-        // These two English success labels are literal wild-Bibarel messages.
+        // These English success labels are literal wild-Bibarel messages.
         // Clone per use so the resident message asset and vanilla fallback
         // remain intact. Keep the normal parser's style and end-event data.
         int move = 0;
@@ -288,6 +331,7 @@ HOOK_DEFINE_TRAMPOLINE(TraversalMessage) {
             Object name = field<Object>(label, 0x18);
             if (string_equals(name, "97-msg_taki_02")) move = 127;
             else if (string_equals(name, "97-msg_naminori_02")) move = 57;
+            else if (string_equals(name, "97-msg_rock_02")) move = 431;
         }
         const auto& config = debug_mount::state.config;
         const bool debug_model = config.enabled && std::strcmp(config.model, "party");
@@ -303,7 +347,8 @@ HOOK_DEFINE_TRAMPOLINE(TraversalMessage) {
             Orig(parser, label, language, method);
             return;
         }
-        suffix.set(string(move == 127 ? " helped out by using Waterfall!" : " helped out by using Surf!"));
+        suffix.set(string(move == 431 ? " helped out by using Rock Climb!"
+            : move == 127 ? " helped out by using Waterfall!" : " helped out by using Surf!"));
         text.set(call<Object>(0x26ef430, name.get(), suffix.get(), nullptr));
         copy.set(call<Object>(0x26d1390, label, nullptr));
         copied_words.set(call<Object>(0x2757e60, words, nullptr));
@@ -357,8 +402,8 @@ HOOK_DEFINE_TRAMPOLINE(PlayerLate) {
             }
         }
         if (session.owner.get() && session.owner.get() != player) { stop(); traversal_move = 57; }
-        if (session.phase == Phase::Empty && call<bool>(0x1dac820, player, nullptr)) {
-            begin(player); // Also covers loading a save while already surfing.
+        if (session.phase == Phase::Empty && traversal_active(player)) {
+            begin(player); // Covers saves on water and canceled loads during a climb.
         }
         if (session.phase == Phase::Ready && !alive(session.model.get())) stop();
         update_visibility();
@@ -391,8 +436,9 @@ extern "C" void exl_main(void*, void*) {
     CutInCommand::InstallAtOffset(0x2c6dc40);
     CutInLoad::InstallAtOffset(0x2cc74b0);
     WaterfallCommand::InstallAtOffset(0x2c6cd40);
+    RockClimbCommand::InstallAtOffset(0x2c6b1f0);
     TraversalMessage::InstallAtOffset(0x1f96e90);
-    log("HiddenMoves: BD 1.3.0 Surf/Waterfall prototype initialized\n");
+    log("HiddenMoves: BD 1.3.0 Surf/Waterfall/Rock Climb prototype initialized\n");
 }
 
 extern "C" void exl_exception_entry() {

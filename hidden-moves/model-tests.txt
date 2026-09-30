@@ -132,3 +132,28 @@ Waterfall runtime and dialogue (2026-09-30)
   Native tests passed: nickname/Unicode, Surf and Waterfall, resident-data
   preservation, no-user fallback, other messages and other languages unchanged.
   Built/installed hashes verified. Dialogue still needs an in-game check.
+
+Rock Climb placements (2026-09-30)
+  User confirmed Geodude became visible after enlarging its model.
+  Saved Geodude: offset [0, 0.3, 0.1], pitch 0, scale 1.5.
+  This includes the requested 0.25-unit downward adjustment; final fit is unconfirmed.
+  Verified 92 TM100 learners against owned compatibility data and Serebii,
+  plus Smeargle through Sketch. All 93 have field models.
+  Generated starting profiles for the remaining 61 species. Preserved existing
+  profiles; no new estimates have been visually checked yet.
+  Geometry uses skin weights and inverse bind poses, torso surfaces and body
+  direction; scaled/tilted against similar rigs and evolutionary relatives.
+  Rider contact is calibrated to Geodude's provisional current placement.
+  Reports: /tmp/hidden-moves-rock-climb-analysis/report.txt and analysis.json.
+  Graveler is next for live review: scale 0.47, offset [0, 0.56, 0.12], pitch 35.
+
+Rock Climb wall clearance (2026-09-30)
+  Graveler was too small and mostly occluded by the cliff on ascent.
+  Live trace showed the replacement enabled with a nonzero scale in both directions.
+  Current manually retained profile: scale 0.8, pitch 35,
+  offset [0, 1.11, -1.1]. Final ascent/descent fit is not yet confirmed.
+  User requested applying the lesson to all models. Recalibrated the torso
+  contact point for 91 candidates; preserved Geodude and Graveler.
+  Rock Climb now has separate species/model tables. Cliff tuning and shared
+  party-member transitions do not alter Surf/Waterfall placements.
+  Report: /tmp/hidden-moves-rock-climb-calibration/report.txt.

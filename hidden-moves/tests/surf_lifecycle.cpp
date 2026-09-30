@@ -23,7 +23,7 @@ void CloseFile(FileHandle) {}
 
 struct Managed {
     alignas(8) std::array<unsigned char, 2048> data{};
-    bool living = true, enabled = true, egg = false, surf = false, waterfall = false;
+    bool living = true, enabled = true, egg = false, surf = false, waterfall = false, rock_climb = false;
     int species = 0;
     game::Vector3 position{}, rotation{}, scale{};
 };
@@ -42,6 +42,7 @@ int preview_species = 0;
 int preview_catalog_id = -1, preview_sex = -1;
 bool missing_preview_params = false;
 bool waterfall_complete = false;
+bool rock_climb_complete = false, rock_climb_visible = false;
 bool dialogue_mode = false;
 void load_preview(void*, void* member, void*) { preview_member = member; }
 void load_debug_preview(void*, int species, uint16_t form, int sex, bool rare, void*) {
@@ -100,8 +101,8 @@ void* member(void*, uint32_t index, void*) { return party.at(index); }
 bool is_null(void*, void*) { return false; }
 bool egg(void* obj, int type, void*) { assert(type == 2); return node(obj).egg; }
 bool knows(void* obj, int move, void*) {
-    assert(move == 57 || move == 127);
-    return move == 57 ? node(obj).surf : node(obj).waterfall;
+    assert(move == 57 || move == 127 || move == 431);
+    return move == 57 ? node(obj).surf : move == 127 ? node(obj).waterfall : node(obj).rock_climb;
 }
 int unique(void* obj, void*) { selected = obj; return 1; }
 int species(void* obj, void*) { return node(obj).species; }
@@ -158,6 +159,8 @@ void* get_transform(void* obj, void*) { assert(obj == model); return transform; 
 void set_position(void* obj, game::Vector3 value, void*) { node(obj).position = value; }
 void set_rotation(void* obj, game::Vector3 value, void*) { node(obj).rotation = value; }
 void set_scale(void* obj, game::Vector3 value, void*) { node(obj).scale = value; }
+game::Vector3 get_position(void* obj, void*) { return node(obj).position; }
+game::Vector3 get_scale(void* obj, void*) { return node(obj).scale; }
 void mock_active(void* obj, bool value, void*) {
     node(obj).enabled = value;
     if (obj == entity && !value) graph_ready = false; // OnDisable destroys it.
@@ -188,6 +191,8 @@ uintptr_t mock_address(uintptr_t rva) {
         ADDRESS(0x211e9b0, play); ADDRESS(0x211eea0, advance);
         ADDRESS(0x26b18d0, get_transform); ADDRESS(0x299d3d0, set_position);
         ADDRESS(0x299d770, set_rotation); ADDRESS(0x299e000, set_scale);
+        ADDRESS(0x299d1c0, get_position); ADDRESS(0x299f5c0, get_scale);
+        ADDRESS(0x26b1a60, enabled);
         ADDRESS(0x26a3450, mock_active); ADDRESS(0x26b19c0, mock_active);
         ADDRESS(0x268b1f0, mock_destroy); ADDRESS(0x269a040, enabled);
         ADDRESS(0x1f0a9e0, current); ADDRESS(0x1dac820, is_swim);
@@ -215,6 +220,10 @@ bool mock_cut_in_original(void* manager, void*) {
     CutInLoad::Callback(manager, 399, nullptr); return true;
 }
 bool mock_waterfall_original(void*, void*) { return waterfall_complete; }
+bool mock_rock_climb_original(void*, void*) {
+    RendererVisibility::Callback(renderer, rock_climb_visible && !rock_climb_complete, nullptr);
+    return rock_climb_complete;
+}
 
 void reset() {
     assert(handles.empty());
@@ -234,6 +243,7 @@ void reset() {
     preview_member = nullptr; preview_species = 0;
     preview_catalog_id = -1; preview_sex = -1; missing_preview_params = false;
     waterfall_complete = false;
+    rock_climb_complete = false; rock_climb_visible = false;
     dialogue_mode = false;
 }
 void* pokemon(int number, bool surf, bool egg = false) {
@@ -443,8 +453,84 @@ int main() {
     WaterfallCommand::Callback(manager, nullptr);
     waterfall_complete = true; WaterfallCommand::Callback(manager, nullptr);
     assert(traversal_move == 57);
+
+    // Rock Climb starts on land, follows the helper's boarding/climbing
+    // visibility, and releases the visual at the end instead of staying mounted.
+    reset(); surf_user = pokemon(9, true); node(surf_user).rock_climb = true;
+    pending = false; start(); tick();
+    auto* shared_mount = model;
+    const auto water_position = node(transform).position;
+    select_traversal(431);
+    assert(model == shared_mount && loads == 1);
+    assert(node(transform).position.z == placement_for(9, 431).offset.z);
+    assert(node(transform).position.z != water_position.z);
+    select_traversal(57);
+    assert(model == shared_mount && loads == 1 && node(transform).position.z == water_position.z);
+    end(); assert(handles.empty());
+
+    reset(); swimming = false; node(renderer).enabled = false;
+    pokemon(130, true);
+    egg_user = pokemon(400, false, true); node(egg_user).rock_climb = true;
+    auto* climb_user = pokemon(67, false); node(climb_user).rock_climb = true;
+    later_user = pokemon(68, false); node(later_user).rock_climb = true;
+    assert(!RockClimbCommand::Callback(nullptr, nullptr));
+    assert(traversal_move == 431 && selected == climb_user && loads == 1);
+    rock_climb_visible = true;
+    RockClimbCommand::Callback(nullptr, nullptr);
+    assert(!node(renderer).enabled); // Suppress boarding while loading.
+    pending = false; tick();
+    assert(session.phase == Phase::Ready && parented_to == anchor);
+    assert(session.member.get() == climb_user && node(model).enabled && !swimming);
+    RockClimbCommand::Callback(nullptr, nullptr); tick(); assert(loads == 1);
+    rock_climb_visible = false; RockClimbCommand::Callback(nullptr, nullptr);
+    assert(!node(model).enabled);
+    rock_climb_visible = true; RockClimbCommand::Callback(nullptr, nullptr);
+    assert(node(model).enabled);
+    rock_climb_complete = true;
+    assert(RockClimbCommand::Callback(nullptr, nullptr)); tick();
+    assert(traversal_move == 57 && session.phase == Phase::Empty && handles.empty());
+    assert(!node(model).living && !node(renderer).enabled && loads == 1 && unloads == 1);
+
+    reset(); swimming = false; node(renderer).enabled = false;
+    pokemon(130, true); // No Rock Climb user: retain the vanilla helper.
+    rock_climb_visible = true; RockClimbCommand::Callback(nullptr, nullptr); tick();
+    assert(session.phase == Phase::Failed && loads == 0 && node(renderer).enabled);
+    rock_climb_complete = true; RockClimbCommand::Callback(nullptr, nullptr);
+    assert(handles.empty() && !node(renderer).enabled);
+
+    reset(); swimming = false; node(renderer).enabled = false;
+    climb_user = pokemon(67, false); node(climb_user).rock_climb = true;
+    rock_climb_visible = true; RockClimbCommand::Callback(nullptr, nullptr);
+    missing_prefab = true; pending = false; tick();
+    assert(session.phase == Phase::Failed && node(renderer).enabled);
+    rock_climb_complete = true; RockClimbCommand::Callback(nullptr, nullptr);
+    assert(handles.empty());
+
+    reset(); swimming = false; node(renderer).enabled = false;
+    climb_user = pokemon(67, false); node(climb_user).rock_climb = true;
+    RockClimbCommand::Callback(nullptr, nullptr);
+    rock_climb_complete = true; RockClimbCommand::Callback(nullptr, nullptr);
+    assert(session.phase == Phase::Retiring && traversal_move == 57 && unloads == 0);
+    pending = false; tick(); tick();
+    assert(session.phase == Phase::Empty && instantiations == 0 && unloads == 1 && handles.empty());
+
+    reset(); swimming = false; node(renderer).enabled = false;
+    climb_user = pokemon(67, false); node(climb_user).rock_climb = true;
+    manager = make(); arguments = make(); pointer(manager, 0x4c0, arguments);
+    move = 431; type = 1;
+    std::memcpy(static_cast<char*>(arguments)+0x18, &argc, sizeof(argc));
+    std::memcpy(static_cast<char*>(arguments)+0x28, &type, sizeof(type));
+    std::memcpy(static_cast<char*>(arguments)+0x2c, &move, sizeof(move));
+    CutInCommand::Callback(manager, nullptr);
+    assert(preview_member == climb_user && traversal_move == 431 && loads == 1 && !traversal_cut_in);
+    pending = false; tick(); assert(session.phase == Phase::Ready && !node(model).enabled);
+    rock_climb_visible = true; RockClimbCommand::Callback(manager, nullptr);
+    assert(node(model).enabled && loads == 1);
+    CharacterOff::Callback(player, nullptr);
+    assert(handles.empty() && traversal_move == 57 && !node(model).living);
+
     reset(); dialogue_mode = true;
-    auto* user = pokemon(130, true); node(user).waterfall = true;
+    auto* user = pokemon(130, true); node(user).waterfall = true; node(user).rock_climb = true;
     pointer(user, 0x80, make_text(u"Gyárados"));
     auto* parser = make(); auto* label = make(); auto* words = make(); auto* word = make();
     pointer(label, 0x18, make_text(u"97-msg_taki_02"));
@@ -471,8 +557,16 @@ int main() {
     copy = game::field<void*>(parser, 0x30);
     copied_word = game::array_item(game::field<void*>(copy, 0x38), 0);
     assert(text_value(game::field<void*>(copied_word, 0x20)) == u"Gyárados helped out by using Surf!");
+    pointer(label, 0x18, make_text(u"97-msg_rock_02"));
+    TraversalMessage::Callback(parser, label, 2, nullptr);
+    copy = game::field<void*>(parser, 0x30);
+    copied_word = game::array_item(game::field<void*>(copy, 0x38), 0);
+    assert(text_value(game::field<void*>(copied_word, 0x20)) == u"Gyárados helped out by using Rock Climb!");
+    node(user).rock_climb = false;
+    TraversalMessage::Callback(parser, label, 2, nullptr);
+    assert(game::field<void*>(parser, 0x30) == label && handles.empty());
     pointer(label, 0x18, make_text(u"97-msg_kairiki_04"));
     TraversalMessage::Callback(parser, label, 2, nullptr);
     assert(game::field<void*>(parser, 0x30) == label && handles.empty());
-    std::cout << "Surf lifecycle: selection, loading, visibility, cancellation, fallback, teardown, live configuration, preview selection passed\n";
+    std::cout << "Surf/Waterfall/Rock Climb lifecycle: selection, loading, visibility, cancellation, fallback, teardown, live configuration, previews and dialogue passed\n";
 }

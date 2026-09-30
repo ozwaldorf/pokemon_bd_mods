@@ -12,6 +12,7 @@ void mock_original(const char*, void*, void*);
 void mock_original(const char*, void*, int, void*);
 bool mock_cut_in_original(void*, void*);
 bool mock_waterfall_original(void*, void*);
+bool mock_rock_climb_original(void*, void*);
 void mock_message_original(void*, void*, int, void*);
 inline void svcOutputDebugString(const char*, size_t) {}
 namespace exl::util::modules {
@@ -28,6 +29,7 @@ template <HookName Name> struct TestHook {
     template <typename... Args> static auto Orig(Args... args) {
         if constexpr (std::string_view(Name.value) == "CutInCommand") return mock_cut_in_original(args...);
         else if constexpr (std::string_view(Name.value) == "WaterfallCommand") return mock_waterfall_original(args...);
+        else if constexpr (std::string_view(Name.value) == "RockClimbCommand") return mock_rock_climb_original(args...);
         else if constexpr (std::string_view(Name.value) == "TraversalMessage") return mock_message_original(args...);
         else mock_original(Name.value, args...);
     }

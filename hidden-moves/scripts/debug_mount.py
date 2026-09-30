@@ -26,7 +26,7 @@ def profile(config):
     return result
 
 
-def save_profile(placements, config):
+def save_profile(placements, config, move='surf'):
     if config['enabled'] != '1':
         return
     model = config['model']
@@ -34,11 +34,13 @@ def save_profile(placements, config):
     if model != 'party' and (not match or not 1 <= int(match[1]) <= 493):
         raise ValueError(f'Invalid model in debug file: {model}')
     saved = profile(config)
-    placements.setdefault('models', {})[model] = saved
+    model_table = 'rock_climb_models' if move == 'rock-climb' else 'models'
+    species_table = 'rock_climb' if move == 'rock-climb' else 'species'
+    placements.setdefault(model_table, {})[model] = saved
     # The native placement table currently selects by species. Preserve variant
     # tweaks separately; only the base model updates the compiled species table.
     if match and match[2] == '00' and match[3] == '00':
-        placements['species'][str(int(match[1]))] = saved
+        placements.setdefault(species_table, {})[str(int(match[1]))] = saved
 
 
 def atomic_write(path, text):
@@ -65,6 +67,8 @@ def main():
     parser.add_argument('--file', type=Path, default=DEFAULT_FILE)
     parser.add_argument('--placements', type=Path, default=PROJECT / 'placements.json',
                         help='Saved profiles (defaults to the project placement table)')
+    parser.add_argument('--move', choices=('surf', 'rock-climb'),
+                        help='Placement table to tune (otherwise retained from the debug file)')
     commands = parser.add_subparsers(dest='command', required=True)
     commands.add_parser('init')
     commands.add_parser('off')
@@ -82,8 +86,11 @@ def main():
         print('\n'.join(name for name in catalog() if query in name))
         return
     defaults = dict(enabled='0', model='pm0130_00_00', offset='0,-0.3,0.1', rotation='0,0,0', scale='0.7,0.7,0.7')
+    previous_move = 'surf'
     if args.file.exists():
         for line in args.file.read_text().splitlines():
+            if line.strip() == '# placement_scope=rock-climb':
+                previous_move = 'rock-climb'
             line = line.split('#', 1)[0].strip()
             if '=' in line:
                 key, value = line.split('=', 1)
@@ -96,11 +103,12 @@ def main():
         print(f'Preserved {args.file}')
         return
     previous = defaults.copy()
+    move = args.move or previous_move
     placements = None
     if args.command in ('set', 'off'):
         try:
             placements = json.loads(args.placements.read_text())
-            save_profile(placements, previous)
+            save_profile(placements, previous, previous_move)
         except (OSError, ValueError, KeyError, TypeError) as error:
             parser.error(f'Cannot save model settings: {error}')
     if args.command == 'off':
@@ -111,8 +119,12 @@ def main():
             model = f'pm{int(args.model):04d}_00_00' if args.model.isdigit() else args.model
             if model != 'party' and model not in catalog():
                 parser.error(f'Unknown field model: {model}; use list to inspect available variants')
-            if model != previous['model']:
-                saved = placements.get('models', {}).get(model)
+            if model != previous['model'] or move != previous_move:
+                model_table = 'rock_climb_models' if move == 'rock-climb' else 'models'
+                species_table = 'rock_climb' if move == 'rock-climb' else 'species'
+                saved = placements.get(model_table, {}).get(model)
+                if saved is None and model != 'party':
+                    saved = placements.get(species_table, {}).get(str(int(model[2:6])))
                 if saved is None and model != 'party':
                     saved = placements['species'].get(str(int(model[2:6])))
                 if saved is None:
@@ -133,11 +145,19 @@ def main():
             defaults[key] = ','.join(str(v) for v in values)
     if placements is not None:
         try:
-            save_profile(placements, defaults)
+            save_profile(placements, defaults, move)
         except (ValueError, KeyError, TypeError) as error:
             parser.error(f'Cannot save model settings: {error}')
+        if move == 'rock-climb' and args.command == 'set' and any(
+                getattr(args, key) is not None for key in PLACEMENT_KEYS):
+            match = re.fullmatch(r'pm(\d{4})_00_00', defaults['model'])
+            if match:
+                manual = set(placements.get('rock_climb_manual_species', []))
+                manual.add(int(match[1]))
+                placements['rock_climb_manual_species'] = sorted(manual)
         atomic_write(args.placements, json.dumps(placements, indent=2) + '\n')
-    text = '# Live Surf preview; enabled=0 restores normal party selection.\n'
+    text = '# Live hidden move preview; enabled=0 restores normal party selection.\n'
+    text += f'# placement_scope={move}\n'
     text += ''.join(f'{key}={value}\n' for key, value in defaults.items())
     atomic_write(args.file, text)
     print(f'Updated {args.file}\n{text}', end='')
