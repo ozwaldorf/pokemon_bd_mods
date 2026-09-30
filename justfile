@@ -3,7 +3,7 @@ set shell := ["bash", "-euo", "pipefail", "-c"]
 romfs := "extracted/romfs"
 pchtxt := "ultrawide-v1.3.0.pchtxt"
 output := "dist"
-device_mod := "/sdcard/Switch/Moda/[3440x1440 21.9 Complete UI v1.3.0]"
+device_mod := "/sdcard/Android/data/dev.eden.eden_emulator.nightly/files/load/0100000011D90000/[3440x1440 21.9 Complete UI v1.3.0]"
 
 # Extract and merge the owned base-game and v1.3.0 update dumps.
 extract:
@@ -84,6 +84,7 @@ capture:
 
 # Copy the mod to the connected Android device.
 push:
+    adb shell 'rm -rf "{{device_mod}}"'
     adb shell 'mkdir -p "{{device_mod}}"'
     adb push "{{output}}/." "{{device_mod}}/"
 

@@ -29,6 +29,12 @@ ULTRAWIDE_X_SCALE = ULTRAWIDE_WIDTH / REFERENCE_WIDTH
 ENCOUNTER_BAND_WIDTH = 5.775
 ENCOUNTER_BAND_NAMES = {"top_high", "top_low", "under_high", "under_low"}
 
+# In list mode the 3D capsule is composed for the left quarter of a 1280-wide
+# orthographic viewport. Widening the RawImage moves that composition 220 UI
+# units right of its still-16:9 pedestal. At an orthographic size of 0.75,
+# 220/720 of the screen height is 0.458333 world units.
+CAPSULE_LIST_CAMERA_ROOT_X = -0.6 + (220.0 / REFERENCE_HEIGHT * 1.5)
+
 BACKGROUND_NAMES = re.compile(
     r"^(BG|BGBorder|Image_BG|WhiteFade|DarkScreen|FadeImage|Frash[1-7])$",
     re.IGNORECASE,
@@ -78,6 +84,14 @@ LOCAL_SCALE_POLICIES = {
     "MapWall/Window/FacilityInfo": (720.0 / 630.0, 720.0 / 630.0),
 }
 
+# Nested canvases with RectMask2D do not reliably refresh a stretch-anchored
+# rect after the top-level window is widened. Give those clipping frames an
+# explicit ultrawide size so their children cannot be cut off at 1280 units.
+FIXED_RECT_SIZE_OVERRIDES = {
+    "Seal/Window/BGRoot": (ULTRAWIDE_WIDTH, REFERENCE_HEIGHT),
+    "Seal/Window/BGRoot/BG/Image": (ULTRAWIDE_WIDTH, REFERENCE_HEIGHT),
+}
+
 # Non-UI scene anchors which host runtime-instantiated models.
 LOCAL_POSITION_X_OVERRIDES = {
     # The player model is parented here after loading. Move only that model;
@@ -95,6 +109,10 @@ ANCHORED_POSITION_OVERRIDES = {
 }
 
 ANCHORED_POSITION_X_OFFSETS = {
+    # This widened image is centered by a nested 1280-wide canvas. Shift it by
+    # half the added canvas width so it covers physical X=0..1720 instead of
+    # extending from X=-220..1500.
+    "Seal/Window/BGRoot/BG/Image": 220.0,
     # Keep the complete Pokédex preview and footprint with their widened
     # left/right page groups.
     "Zukan/Window/ZukanDescriptionPanel/ModelViewParent": 220.0,
@@ -184,6 +202,11 @@ EDGE_POLICIES = {
     "PokemonSelect/Window/GoToBox": "right",
     "Report/Window/MainWindow": "left",
     "SealTemplate/Window/SealList": "right",
+    # The capsule pedestal and its orange direction markers remain authored
+    # in the original left-side frame. Keep the 2D capsule preview over that
+    # assembly instead of letting its center anchor move 220 units right when
+    # the window widens.
+    "Seal/Window/Scene_CupsuleList/Capsule/2D": "left",
     "ShopFlower/Window/SubWindow": "left",
     "LevelUp/Window/StatusPanel": "right",
     "RotomSelect/Window/MessageWindowRoot": "right",
@@ -248,6 +271,17 @@ def anchor_to_edge(rect, side: str) -> None:
         raise ValueError(f"Unknown edge policy: {side}")
 
 
+def set_fixed_centered_size(rect, width: float, height: float) -> None:
+    rect.m_AnchorMin.x = 0.5
+    rect.m_AnchorMin.y = 0.5
+    rect.m_AnchorMax.x = 0.5
+    rect.m_AnchorMax.y = 0.5
+    rect.m_AnchoredPosition.x = 0.0
+    rect.m_AnchoredPosition.y = 0.0
+    rect.m_SizeDelta.x = width
+    rect.m_SizeDelta.y = height
+
+
 def uint32_to_float(value: int) -> float:
     return struct.unpack("<f", struct.pack("<I", value))[0]
 
@@ -310,6 +344,14 @@ def patch_bundle(source: Path, destination: Path) -> list[dict]:
         if path in STRETCH_PATHS:
             action = "stretch_explicit"
             stretch(rect)
+        elif path in FIXED_RECT_SIZE_OVERRIDES:
+            width, height = FIXED_RECT_SIZE_OVERRIDES[path]
+            set_fixed_centered_size(rect, width, height)
+            action = f"fixed_centered_size_{width:g}x{height:g}"
+            if path in ANCHORED_POSITION_X_OFFSETS:
+                offset = ANCHORED_POSITION_X_OFFSETS[path]
+                rect.m_AnchoredPosition.x += offset
+                action += f"_position_x_plus_{offset:g}"
         elif path in LOCAL_SCALE_POLICIES:
             sx, sy = LOCAL_SCALE_POLICIES[path]
             rect.m_LocalScale.x = sx
@@ -407,6 +449,35 @@ def patch_bundle(source: Path, destination: Path) -> list[dict]:
                 "path": path,
                 "path_id": obj.path_id,
                 "action": f"camera_lens_shift_x_{CAMERA_LENS_SHIFT_X[path]:g}",
+            }
+        )
+
+    # CapsuleViewController instantiates this prefab and reapplies its list
+    # camera defaults at runtime, after all UI RectTransforms are loaded.
+    # Patch that winning value so the 3D capsule remains over the authored
+    # pedestal and orange direction markers on an ultrawide viewport.
+    for obj in env.objects:
+        if obj.type.name != "MonoBehaviour":
+            continue
+        component = obj.read()
+        try:
+            game_object = component.m_GameObject.read()
+        except Exception:
+            continue
+        if game_object.m_Name != "Capsule3DView" or not hasattr(
+            component, "listModeDefault"
+        ):
+            continue
+        component.listModeDefault.modelCameraRootPosition.x = (
+            CAPSULE_LIST_CAMERA_ROOT_X
+        )
+        component.save()
+        changes.append(
+            {
+                "bundle": str(source),
+                "path": "Capsule3DView/listModeDefault/modelCameraRootPosition",
+                "path_id": obj.path_id,
+                "action": f"position_x_{CAPSULE_LIST_CAMERA_ROOT_X:g}",
             }
         )
 

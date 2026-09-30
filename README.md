@@ -112,10 +112,10 @@ adb devices
 just push
 ```
 
-That installs the files under:
+That replaces the active Eden mod and installs the files under:
 
 ```text
-/sdcard/Switch/Moda/[3440x1440 21.9 Complete UI v1.3.0]/
+/sdcard/Android/data/dev.eden.eden_emulator.nightly/files/load/0100000011D90000/[3440x1440 21.9 Complete UI v1.3.0]/
 ```
 
 Enable that mod for Pokémon Brilliant Diamond. Configure the emulator to use
