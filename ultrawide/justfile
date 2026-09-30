@@ -3,7 +3,7 @@ set shell := ["bash", "-euo", "pipefail", "-c"]
 romfs := "../extracted/romfs"
 pchtxt := "ultrawide-v1.3.0.pchtxt"
 output := "dist"
-device_mod := "/sdcard/Android/data/dev.eden.eden_emulator.nightly/files/load/0100000011D90000/[3440x1440 21.9 Complete UI v1.3.0]"
+device_mod := "/sdcard/Android/data/dev.eden.eden_emulator.nightly/files/load/0100000011D90000/3440x1440 21.9 Complete UI v1.3.0"
 
 # Extract and merge the owned base-game and v1.3.0 update dumps.
 extract:
@@ -42,7 +42,7 @@ push:
 
 # Install the built mod into local Eden.
 install:
-    uv run python ../scripts/install_mod.py --source "{{output}}" --name "[3440x1440 21.9 Complete UI v1.3.0]"
+    uv run python ../scripts/install_mod.py --source "{{output}}" --name "3440x1440 21.9 Complete UI v1.3.0"
 
 # Compile-check maintained Python sources.
 check:

@@ -924,18 +924,24 @@ def main() -> None:
     write_exefs_patch(args.pchtxt, exefs / args.pchtxt.name)
 
     (output / "README.md").write_text(
-        """# Pokémon Brilliant Diamond 21:9 Complete UI
+        """# Ultrawide UI for Pokémon Brilliant Diamond
 
-Target: Pokémon Brilliant Diamond v1.3.0  
-Title ID: `0100000011D90000`  
-Build ID: `94CEAE325C205C4B9D6F7235552F28FD`
+For Pokémon Brilliant Diamond 1.3.0 at 3440×1440, tested locally in Eden.
 
-This is a self-contained 3440×1440 LayeredFS/ExeFS mod. It includes the
-upstream ultrawide ExeFS patch; do not enable that patch separately. Keep the
-emulator's **stretch to window** option enabled and use its **8 GB RAM
-layout**, as required by the upstream patch.
+## Installation
 
-The exact generated asset changes are listed in `ui_patch_manifest.json`.
+Copy this directory into your emulator's mod directory as
+`3440x1440 21.9 Complete UI v1.3.0`. Restart the game after installing.
+Enable **stretch to window** and the **8 GB RAM layout** in Eden.
+Enable this mod on its own; the upstream ultrawide ExeFS patch is included.
+
+The mod targets title `0100000011D90000`, build
+`94CEAE325C205C4B9D6F7235552F28FD`.
+
+## Changes
+
+UI assets and native patches adapt the game to the wider viewport.
+The generated asset changes are listed in `ui_patch_manifest.json`.
 """,
         encoding="utf-8",
     )
