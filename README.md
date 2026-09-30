@@ -100,3 +100,8 @@ installing a new build.
 
 Private game files, keys, virtual environments, and generated output are
 Git-ignored. Do not commit or distribute game dumps or keys.
+
+## License
+
+[MIT](LICENSE), except `ultrawide/ultrawide-v1.3.0.pchtxt`, which is
+third-party work; see [its attribution](ultrawide/ATTRIBUTION.md).
