@@ -149,6 +149,13 @@ BATTLE_INTRO_BALL_X_OFFSETS = {
 
 ANCHORED_POSITION_X_OFFSETS = {
     **BATTLE_INTRO_BALL_X_OFFSETS,
+    # PokeParty retains its animated 1280-wide coordinate frame. Its cards
+    # start at physical X=220+29. Move the static content and backing group
+    # together to retain the authored 29-unit inset from the left edge.
+    "Bag/Window/PokeParty/Content": -220.0,
+    "Bag/Window/PokeParty/Base": -220.0,
+    "Pokemon/Window/PokeParty/Content": -220.0,
+    "Pokemon/Window/PokeParty/Base": -220.0,
     # UISeal resets the tray parent's position when entering edit mode.
     # Its nested canvas retains the 1280-unit center, so move all artwork
     # within that runtime-controlled parent by the missing half-width.
@@ -231,10 +238,9 @@ SIZE_X_OVERRIDES = {
     # right-anchored fields otherwise lag 220 units behind the widened header.
     "Zukan/Window/ZukanDescriptionPanel/FixedObjects/StatusPanel": 1720.0,
     "ZukanRegister/Window/ZukanDescriptionPanel/FixedObjects/StatusPanel": 1720.0,
-    # Preserve each plate's corrected right edge while restoring its decorated
-    # left border to the physical screen edge.
-    "Pokemon/Window/BG/Image_plate": 752.0,
-    "Bag/Window/Image_PartyPlate": 708.0,
+    # The Bag and Pokemon party lists now retain their original left inset,
+    # so their paper panels keep their authored widths (488 and 532).
+    # Battle party details still need the widened backing panel.
     "PokemonBattle/Window/BG/Image_plate": 701.0,
     # Its original right edge is already at X=1718 on the ultrawide canvas.
     "Map/Window/Map/Object_Map/Body/Image_Base": 1718.0,
@@ -869,7 +875,11 @@ def write_exefs_patch(source: Path, destination: Path) -> None:
         if old not in text:
             raise ValueError(f"Missing expected Poketch patch: {old}")
         text = re.sub(re.escape(old) + r"[^\n]*", new + " // resized Poketch screen-space extent", text, count=1)
-    additions = """// Full-width encounter band coverage
+    additions = """// Bag.OpOpen supplies its own shared-message-window anchor (260, 110).
+// Shift the complete Bag dialog left by half the added canvas width; keep
+// its vertical anchor and all other screens' message windows unchanged.
+01BE2DC0 0844A852 // mov w8,#0x42200000; Bag dialog X = 40 instead of 260
+// Full-width encounter band coverage
 // Double the RawImage rect dimensions before creating its RenderTexture.
 01A30B38 1637E597 // BL 0x0137E790
 0137E790 0829281E // fadd s8,s8,s8
