@@ -2,6 +2,15 @@
 
 For Pokémon Brilliant Diamond 1.3.0 at 3440×1440, tested locally in Eden.
 
+## Credits
+
+The original ultrawide ExeFS patch is by
+[Fl4sh_#9174 (Fl4sh9174)](https://github.com/Fl4sh9174), from the
+[Brilliant Diamond mod archive](https://github.com/Fl4sh9174/Switch-Emulator-Ultrawide-FPS-Mods/blob/main/Pokemon%20Brilliant%20Diamond%20%5B0100000011D90000%5D%5Bmods%5D.zip).
+This project adds UI asset patches, further native fixes, and build tools.
+See [source attribution](ATTRIBUTION.md) for the exact upstream file and
+verified revision. Attribution is included in the generated mod.
+
 ## Implemented
 
 - The upstream ultrawide ExeFS patch is included in the build.

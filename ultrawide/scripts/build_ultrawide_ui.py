@@ -923,10 +923,21 @@ def main() -> None:
     exefs = output / "exefs"
     write_exefs_patch(args.pchtxt, exefs / args.pchtxt.name)
 
+    attribution = Path(__file__).resolve().parents[1] / "ATTRIBUTION.md"
+    (output / "ATTRIBUTION.md").write_bytes(attribution.read_bytes())
+
     (output / "README.md").write_text(
         """# Ultrawide UI for Pokémon Brilliant Diamond
 
 For Pokémon Brilliant Diamond 1.3.0 at 3440×1440, tested locally in Eden.
+
+## Credits
+
+The original ultrawide ExeFS patch is by
+[Fl4sh_#9174 (Fl4sh9174)](https://github.com/Fl4sh9174), from the
+[Brilliant Diamond mod archive](https://github.com/Fl4sh9174/Switch-Emulator-Ultrawide-FPS-Mods/blob/main/Pokemon%20Brilliant%20Diamond%20%5B0100000011D90000%5D%5Bmods%5D.zip).
+This project adds UI asset patches, further native fixes, and build tools.
+See [source attribution](ATTRIBUTION.md) for the upstream file and revision.
 
 ## Installation
 
