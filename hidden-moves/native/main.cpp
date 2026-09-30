@@ -1,4 +1,5 @@
 #include "game.hpp"
+#include "hooks.hpp"
 #include "signatures.hpp"
 #include "placements.hpp"
 #include "debug_config.hpp"
@@ -428,16 +429,16 @@ extern "C" void exl_main(void*, void*) {
         return;
     }
     exl::hook::Initialize();
-    RendererVisibility::InstallAtOffset(game::RendererEnabled);
-    SurfAppear::InstallAtOffset(game::AppearSwim);
-    SwimState::InstallAtOffset(game::ChangeSwim);
-    PlayerLate::InstallAtOffset(game::PlayerLateUpdate);
-    CharacterOff::InstallAtOffset(game::CharacterDisable);
-    CutInCommand::InstallAtOffset(0x2c6dc40);
-    CutInLoad::InstallAtOffset(0x2cc74b0);
-    WaterfallCommand::InstallAtOffset(0x2c6cd40);
-    RockClimbCommand::InstallAtOffset(0x2c6b1f0);
-    TraversalMessage::InstallAtOffset(0x1f96e90);
+    RendererVisibility::InstallAtOffset(hooks::RendererEnabled);
+    SurfAppear::InstallAtOffset(hooks::AppearSwim);
+    SwimState::InstallAtOffset(hooks::ChangeSwim);
+    PlayerLate::InstallAtOffset(hooks::PlayerLateUpdate);
+    CharacterOff::InstallAtOffset(hooks::CharacterDisable);
+    CutInCommand::InstallAtOffset(hooks::CutInCommand);
+    CutInLoad::InstallAtOffset(hooks::CutInLoad);
+    WaterfallCommand::InstallAtOffset(hooks::WaterfallCommand);
+    RockClimbCommand::InstallAtOffset(hooks::RockClimbCommand);
+    TraversalMessage::InstallAtOffset(hooks::TraversalMessage);
     log("HiddenMoves: BD 1.3.0 Surf/Waterfall/Rock Climb prototype initialized\n");
 }
 

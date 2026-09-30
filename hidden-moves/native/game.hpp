@@ -58,11 +58,6 @@ inline void store_object(Object object, size_t offset, Object value) {
     call<void>(0x2afa20, slot, value); // IL2CPP GC write barrier.
 }
 
-constexpr uintptr_t AppearSwim = 0x1db4000;
-constexpr uintptr_t ChangeSwim = 0x1db2640;
-constexpr uintptr_t PlayerLateUpdate = 0x1da3fd0;
-constexpr uintptr_t CharacterDisable = 0x1788540;
-constexpr uintptr_t RendererEnabled = 0x269a090;
 constexpr size_t BibarelRenderer = 0x1d8;
 constexpr size_t SurfTransform = 0x388;
 

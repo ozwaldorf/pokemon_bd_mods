@@ -94,6 +94,13 @@ def signatures(text: bytes, target: Path) -> dict:
     return manifest
 
 
+def hook_offsets(target: Path) -> None:
+    lines = ["#pragma once", "#include <cstdint>", "namespace hooks {"]
+    lines += [f"constexpr uintptr_t {name} = 0x{address:x};" for name, address in HOOKS.items()]
+    lines.extend(["}", ""])
+    target.write_text("\n".join(lines))
+
+
 def placements(source: Path, target: Path) -> None:
     data = json.loads(source.read_text())
 
@@ -228,6 +235,7 @@ def main() -> None:
     shutil.copy2(framework / "CMakeLists.txt", work / "CMakeLists.txt")
     shutil.copy2(PROJECT / "native/config.cmake", work / "config.cmake")
     hooks = signatures(text, work / "src/mod/signatures.hpp")
+    hook_offsets(work / "src/mod/hooks.hpp")
     placements(PROJECT / "placements.json", work / "src/mod/placements.hpp")
     check_ultrawide_overlap(hooks)
     run(sys.executable, "-m", "unittest", "discover",
