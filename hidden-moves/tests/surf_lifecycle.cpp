@@ -326,6 +326,12 @@ int main() {
     assert(session.phase == Phase::Retiring);
     pending = false; tick(); tick();
     assert(session.phase == Phase::Ready && selected == party[0] && !session.debug.enabled);
+    // A disabled config is no longer polled; traversal cut-ins still read edits.
+    debug_file = "enabled=1\nmodel=pm0130_00_00\noffset=0,0,0\nrotation=0,0,0\nscale=1,1,1\n";
+    PlayerLate::Callback(player, 0.6f, nullptr);
+    assert(!debug_mount::state.config.enabled);
+    debug_mount::refresh();
+    assert(debug_mount::state.config.enabled);
     end(); assert(handles.empty());
 
     debug_mount::Config parsed;

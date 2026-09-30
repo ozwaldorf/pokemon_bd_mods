@@ -256,7 +256,7 @@ HOOK_DEFINE_TRAMPOLINE(CutInCommand) {
         }
         const int previous = traversal_cut_in;
         traversal_cut_in = move == 57 || move == 127 || move == 431 ? move : 0;
-        if (traversal_cut_in) debug_mount::update(0.5f);
+        if (traversal_cut_in) debug_mount::refresh();
         if (traversal_cut_in == 127 || traversal_cut_in == 431) select_traversal(traversal_cut_in);
         bool result = Orig(manager, method);
         traversal_cut_in = previous;

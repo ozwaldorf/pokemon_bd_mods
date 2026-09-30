@@ -7,9 +7,14 @@ namespace {
 void message(const char* s) { svcOutputDebugString(s, std::strlen(s)); }
 }
 void update(float delta) {
+    if (state.checked && !state.config.enabled) return;
     if (std::isfinite(delta) && delta > 0) state.elapsed += delta;
     if (state.elapsed < 0.5f) return;
+    refresh();
+}
+void refresh() {
     state.elapsed = 0;
+    state.checked = true;
     if (!state.mounted) {
         state.mounted = nn::fs::MountSdCardForDebug("hmsd").isSuccess();
         if (!state.mounted) {

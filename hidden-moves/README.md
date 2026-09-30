@@ -70,8 +70,12 @@ just install-hidden-moves
 The build fetches the pinned ExLaunch framework and uses the Switch toolchain
 provided by Nix, then writes the generated mod to `dist/Party Hidden Moves v1.3.0/`. Installation
 copies it to
-`~/.local/share/eden/load/0100000011D90000/Party Hidden Moves v1.3.0/` and
-initializes the live debug configuration. Restart the game after installing.
+`~/.local/share/eden/load/0100000011D90000/Party Hidden Moves v1.3.0/`.
+Restart the game after installing.
+
+`just debug-hidden-moves set ...` creates the live debug configuration. The
+mod reads it at startup and at each traversal cut-in, and polls it while
+enabled. Changes made while disabled apply at the next cut-in.
 
 Use `just check` to syntax-check the Python scripts and `just test-hidden-moves` to run the
 native lifecycle checks with a mocked engine boundary.

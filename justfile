@@ -52,7 +52,6 @@ test-hidden-moves:
 # Install the hidden moves mod into local Eden.
 install-hidden-moves:
     uv run python scripts/install_mod.py --source "{{dist_hidden_moves}}"
-    uv run python hidden-moves/scripts/debug_mount.py init
 
 # List models or update the live hidden moves debug configuration without rebuilding.
 debug-hidden-moves *args:

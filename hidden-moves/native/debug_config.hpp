@@ -17,7 +17,7 @@ struct State {
     float elapsed = 1;
     bool mounted = false, reported_mount_failure = false;
     uint64_t last_hash = 0;
-    bool had_file = false;
+    bool had_file = false, checked = false;
 };
 inline State state;
 
@@ -91,5 +91,8 @@ inline bool parse(char* text, Config& output) {
     output = value;
     return true;
 }
+// Polls every 0.5 s while an enabled config is active; otherwise the file is
+// read once at startup and on each traversal cut-in (see refresh).
 void update(float delta);
+void refresh();
 }
