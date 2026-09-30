@@ -44,6 +44,12 @@ class PlacementScopeTests(unittest.TestCase):
             self.assertIn('offset=0.0,0.25,0.0', config.read_text())
             self.assertEqual(json.loads(placements.read_text())['rock_climb']['9']['offset'],
                              [0, 1.45, -1.1])
+            # Switching scope without a model loads that scope's saved profile.
+            run('--move', 'rock-climb', 'set')
+            self.assertIn('offset=0.0,1.45,-1.1', config.read_text())
+            saved = json.loads(placements.read_text())
+            self.assertEqual(saved['rock_climb']['9']['offset'], [0, 1.45, -1.1])
+            self.assertEqual(saved['species']['9'], water)
 
 
 if __name__ == '__main__':

@@ -117,23 +117,26 @@ def main():
         defaults['enabled'] = '0'
     if args.command == 'set':
         defaults['enabled'] = '1'
+        model = previous['model']
         if args.model:
             model = f'pm{int(args.model):04d}_00_00' if args.model.isdigit() else args.model
             if model != 'party' and model not in catalog():
                 parser.error(f'Unknown field model: {model}; use list to inspect available variants')
-            if model != previous['model'] or move != previous_move:
-                model_table = 'rock_climb_models' if move == 'rock-climb' else 'models'
-                species_table = 'rock_climb' if move == 'rock-climb' else 'species'
-                saved = placements.get(model_table, {}).get(model)
-                if saved is None and model != 'party':
-                    saved = placements.get(species_table, {}).get(str(int(model[2:6])))
-                if saved is None and model != 'party':
-                    saved = placements['species'].get(str(int(model[2:6])))
-                if saved is None:
-                    saved = placements['default']
-                for key in PLACEMENT_KEYS:
-                    defaults[key] = ','.join(str(v) for v in saved[key])
-            defaults['model'] = model
+        # Load the saved profile for a new model or scope instead of carrying
+        # the previous scope's live values into it.
+        if model != previous['model'] or move != previous_move:
+            model_table = 'rock_climb_models' if move == 'rock-climb' else 'models'
+            species_table = 'rock_climb' if move == 'rock-climb' else 'species'
+            saved = placements.get(model_table, {}).get(model)
+            if saved is None and model != 'party':
+                saved = placements.get(species_table, {}).get(str(int(model[2:6])))
+            if saved is None and model != 'party':
+                saved = placements['species'].get(str(int(model[2:6])))
+            if saved is None:
+                saved = placements['default']
+            for key in PLACEMENT_KEYS:
+                defaults[key] = ','.join(str(v) for v in saved[key])
+        defaults['model'] = model
         for key in ('offset', 'rotation', 'scale'):
             values = getattr(args, key)
             if values is None:
