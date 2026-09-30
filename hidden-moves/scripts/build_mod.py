@@ -22,7 +22,6 @@ from npdm import validate_process_descriptor
 PROJECT = Path(__file__).resolve().parents[1]
 FRAMEWORK_URL = "https://github.com/TeamLumi/Luminescent_ExLaunch.git"
 FRAMEWORK_REV = "0d457adae65e5e56de35463b910aabc02903e7fd"
-IMAGE = "devkitpro/devkita64@sha256:1fc388c3a0d34bd2045a6dadcb1020e069d5f876a187fd705de14b4440c00282"
 BUILD_ID = "94CEAE325C205C4B9D6F7235552F28FD"
 HOOKS = {
     "AppearSwim": 0x1DB4000,
@@ -181,6 +180,10 @@ def main() -> None:
     parser.add_argument("--prepare-only", action="store_true")
     parser.add_argument("--test-only", action="store_true")
     args = parser.parse_args()
+    devkitpro = Path(os.environ.get("DEVKITPRO", ""))
+    compiler = devkitpro / "devkitA64/bin/aarch64-none-elf-g++"
+    if not (args.prepare_only or args.test_only) and not compiler.is_file():
+        parser.error("Switch toolchain missing; enter the repository's `nix develop` shell")
     text = executable_text(args.exefs / "main")
     build = PROJECT / "build"
     build.mkdir(exist_ok=True)
@@ -231,26 +234,22 @@ def main() -> None:
     if args.prepare_only:
         print(work)
         return
-    security = subprocess.check_output(
-        ["docker", "info", "--format", "{{json .SecurityOptions}}"], text=True
-    )
-    # Rootless Docker maps container root to the invoking host user.
-    container_user = "0:0" if "rootless" in security else f"{os.getuid()}:{os.getgid()}"
-    host_test = (
-        "g++ -std=c++23 -Wall -Wextra -I/project/tests/stubs "
-        "-I/project/build/work/src/mod /project/tests/surf_lifecycle.cpp "
-        "-o /project/build/surf_lifecycle_test && /project/build/surf_lifecycle_test"
-    )
-    native_build = (
-        "cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_TOOLCHAIN_FILE=cmake/toolchain.cmake "
-        "-B out && cmake --build out --target HiddenMoves_Diamond_all --parallel 4"
-    )
-    run("docker", "run", "--rm", "--user", container_user,
-        "--volume", f"{PROJECT}:/project", "--workdir", "/project/build/work", IMAGE,
-        "bash", "-euc", host_test if args.test_only else host_test + " && " + native_build)
+    host_test = build / "surf_lifecycle_test"
+    run("g++", "-std=c++23", "-Wall", "-Wextra",
+        f"-I{PROJECT / 'tests/stubs'}", f"-I{work / 'src/mod'}",
+        str(PROJECT / "tests/surf_lifecycle.cpp"), "-o", str(host_test))
+    run(str(host_test))
     if args.test_only:
         return
-    artifacts = work / "out/HiddenMoves_Diamond_out"
+    # Keep the previous container's CMake cache separate. Refresh configuration
+    # when Nix changes store paths while retaining compiled object files.
+    output = work / "out-nix"
+    run("cmake", "--fresh", "-S", str(work), "-B", str(output),
+        "-DCMAKE_BUILD_TYPE=Release",
+        f"-DCMAKE_TOOLCHAIN_FILE={work / 'cmake/toolchain.cmake'}")
+    run("cmake", "--build", str(output), "--target", "HiddenMoves_Diamond_all",
+        "--parallel", "4")
+    artifacts = output / "HiddenMoves_Diamond_out"
     npdm = (artifacts / "main.npdm").read_bytes()
     validate_process_descriptor(npdm)
     if (artifacts / "subsdk9").read_bytes()[:4] != b"NSO0":
@@ -275,7 +274,14 @@ def main() -> None:
     manifest = {
         "title_id": "0100000011D90000", "version": "1.3.0", "build_id": BUILD_ID,
         "framework": {"url": FRAMEWORK_URL, "revision": FRAMEWORK_REV},
-        "toolchain_image": IMAGE, "hooks": hooks,
+        "toolchain": {
+            "devkitpro": str(devkitpro),
+            "compiler": subprocess.check_output([str(compiler), "--version"],
+                                                text=True).splitlines()[0],
+            "flake_lock_sha256": hashlib.sha256(
+                (PROJECT.parent / "flake.lock").read_bytes()).hexdigest(),
+        },
+        "hooks": hooks,
         "placements": json.loads((PROJECT / "placements.json").read_text()),
         "native_lifecycle_tests_passed": True,
         "eden_0_2_1_metadata_validated": True,

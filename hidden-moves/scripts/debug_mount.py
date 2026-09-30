@@ -9,7 +9,7 @@ import re
 import tempfile
 
 PROJECT = Path(__file__).resolve().parents[1]
-DEFAULT_FILE = Path('/home/oz/.local/share/eden/sdmc/hidden-moves-debug.cfg')
+DEFAULT_FILE = Path.home() / '.local/share/eden/sdmc/hidden-moves-debug.cfg'
 PLACEMENT_KEYS = ('offset', 'rotation', 'scale')
 
 
@@ -81,6 +81,8 @@ def main():
     setting.add_argument('--rotation', type=float, nargs=3)
     setting.add_argument('--scale', type=float, nargs='+')
     args = parser.parse_args()
+    args.file = args.file.expanduser()
+    args.placements = args.placements.expanduser()
     if args.command == 'list':
         query = f'pm{int(args.filter):04d}_' if args.filter.isdigit() else args.filter
         print('\n'.join(name for name in catalog() if query in name))

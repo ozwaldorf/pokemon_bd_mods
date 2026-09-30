@@ -3,9 +3,11 @@
 Build tooling for the 3440×1440 ultrawide UI patch for Pokémon Brilliant
 Diamond v1.3.0.
 
-## Requirements
+## Development
 
-- A Linux system with Nix and flakes enabled.
+### Requirements
+
+- An x86_64 Linux system with Nix and flakes enabled.
 - Your own Pokémon Brilliant Diamond base-game NSP.
 - Your own Pokémon Brilliant Diamond v1.3.0 update NSP.
 - Your own `prod.keys` capable of decrypting those dumps.
@@ -15,7 +17,7 @@ Diamond v1.3.0.
 Never commit or distribute game dumps, extracted game files, title keys, or
 `prod.keys`. The private inputs and generated directories are Git-ignored.
 
-## Repository layout
+### Repository layout
 
 | Path | Contents |
 | --- | --- |
@@ -29,10 +31,11 @@ Never commit or distribute game dumps, extracted game files, title keys, or
 captures are written to unique system temporary directories rather than kept
 in the repository.
 
-## 1. Prepare the owned files
+### 1. Install the dumps and keys
 
-Create `dumps/` in the workspace root (the parent of `ultrawide/`) and use
-these exact filenames:
+Follow the shared [development setup](../README.md#development) to copy your
+base-game NSP, v1.3.0 update NSP, and `prod.keys` into `dumps/` at the repository
+root (the parent of `ultrawide/`). Use these exact filenames:
 
 ```text
 dumps/
@@ -47,7 +50,7 @@ The build targets:
 - Game version: `1.3.0`
 - Build ID: `94CEAE325C205C4B9D6F7235552F28FD`
 
-## 2. Enter the development environment
+### 2. Enter the development environment
 
 From the workspace root:
 
@@ -62,7 +65,7 @@ The Nix shell provides Python, `uv`, ADB, FFmpeg, `just`, `hactool`,
 LibHac/hactoolnet are built from source revisions pinned by `../flake.lock`; no
 local tool clones are needed.
 
-## 3. Extract and merge the game files
+### 3. Extract and merge the game files
 
 Run:
 
@@ -70,9 +73,11 @@ Run:
 just extract
 ```
 
-This validates the three files in `../dumps/`, identifies the Program NCA inside
-each NSP, and uses the base NCA to apply the v1.3.0 RomFS update. Intermediate
-files use a system temporary directory and are deleted when extraction
+This calls the shared `../scripts/extract_game.py` (also available as
+`just extract` from the repository root). It validates the three files in
+`../dumps/`, identifies the Program NCA inside each NSP, and uses the base NCA
+to apply the v1.3.0 RomFS update. Intermediate
+files are staged beside the output directory and are deleted when extraction
 finishes. The result is:
 
 ```text
@@ -84,7 +89,7 @@ finishes. The result is:
 Running `just extract` again replaces the existing extraction only after the
 new extraction completes successfully.
 
-## 4. Build the mod
+### 4. Build the mod
 
 ```sh
 just build
@@ -103,7 +108,7 @@ dist/
 The build already incorporates `ultrawide-v1.3.0.pchtxt`. Do not enable the
 upstream ultrawide mod separately.
 
-## 5. Install and configure
+### 5. Install and configure
 
 Install the built mod into local Eden:
 
@@ -114,11 +119,12 @@ just install
 The destination is:
 
 ```text
-/home/oz/.local/share/eden/load/0100000011D90000/[3440x1440 21.9 Complete UI v1.3.0]/
+~/.local/share/eden/load/0100000011D90000/[3440x1440 21.9 Complete UI v1.3.0]/
 ```
 
 Restart the game after installation. The shared installer backs up an existing
-copy of this mod under `/tmp` and preserves other mod directories.
+copy of this mod in the system temporary directory and preserves other mod
+directories.
 
 The optional Android installation command remains available:
 

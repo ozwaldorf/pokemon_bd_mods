@@ -15,6 +15,7 @@
     let
       system = "x86_64-linux";
       pkgs = import nixpkgs { inherit system; };
+      devkitpro = pkgs.callPackage ./nix/devkitpro.nix { };
       fetchNupkg = pkgs.callPackage
         "${nixpkgs}/pkgs/build-support/dotnet/fetch-nupkg" {
           inherit (pkgs.dotnetCorePackages) nugetPackageHook patchNupkgs;
@@ -53,7 +54,7 @@
       };
     in {
       packages.${system} = {
-        inherit hactoolnet il2cppdumper;
+        inherit devkitpro hactoolnet il2cppdumper;
       };
 
       devShells.${system}.default = pkgs.mkShell {
@@ -64,6 +65,11 @@
           hactoolnet
           il2cppdumper
           pkgs.just
+          pkgs.cmake
+          pkgs.gnumake
+          pkgs.gcc
+          pkgs.git
+          devkitpro
           pkgs.python312
           pkgs.uv
           pkgs.pkgsCross.aarch64-multiplatform.buildPackages.binutils
@@ -71,6 +77,8 @@
 
         LD_LIBRARY_PATH = pkgs.lib.makeLibraryPath [ pkgs.stdenv.cc.cc.lib ];
         UV_PYTHON = "${pkgs.python312}/bin/python3.12";
+        DEVKITPRO = "${devkitpro}";
+        DEVKITA64 = "${devkitpro}/devkitA64";
       };
     };
 }

@@ -14,7 +14,7 @@ inspect pokemon="pm0130_00_00" player="fc0001_00":
 check:
     uv run python -c 'from pathlib import Path; [compile(p.read_bytes(), str(p), "exec") for p in Path("scripts").glob("*.py")]'
 
-# Build the native Surf prototype with the pinned devkitPro Docker image.
+# Build the native mod with the root Nix shell's Switch toolchain.
 build:
     uv run python scripts/build_mod.py
 

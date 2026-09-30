@@ -146,7 +146,7 @@ def main() -> None:
         if not path.is_file():
             parser.error(f"Missing {label} bundle: {path}")
     report = {label: inspect_bundle(path) for label, path in paths.items()}
-    output = Path(tempfile.mkdtemp(prefix="pokemon-bd-hidden-moves-inspect-", dir="/tmp"))
+    output = Path(tempfile.mkdtemp(prefix="pokemon-bd-hidden-moves-inspect-"))
     target = output / "mount-models.json"
     target.write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")
     print(target)
