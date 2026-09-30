@@ -29,11 +29,10 @@ ULTRAWIDE_X_SCALE = ULTRAWIDE_WIDTH / REFERENCE_WIDTH
 ENCOUNTER_BAND_WIDTH = 5.775
 ENCOUNTER_BAND_NAMES = {"top_high", "top_low", "under_high", "under_low"}
 
-# In list mode the 3D capsule is composed for the left quarter of a 1280-wide
-# orthographic viewport. Widening the RawImage moves that composition 220 UI
-# units right of its still-16:9 pedestal. At an orthographic size of 0.75,
-# 220/720 of the screen height is 0.458333 world units.
-CAPSULE_LIST_CAMERA_ROOT_X = -0.6 + (220.0 / REFERENCE_HEIGHT * 1.5)
+# Keep the authored list camera: its reversed horizontal viewing direction
+# makes a positive camera-root offset move the capsule right. The widened
+# viewport already places this composition over the relocated tray.
+CAPSULE_LIST_CAMERA_ROOT_X = -0.6
 
 # The display is 640x480, but its bezel is 940x962. Fit the entire expanded
 # watch within the 720-unit canvas. Its bezel extends 4 units right and 12
@@ -95,6 +94,9 @@ STRETCH_PATHS = {
 # Local scales needed inside off-screen render scenes.  These transforms are
 # not screen layout roots, so stretching their anchors would be incorrect.
 LOCAL_SCALE_POLICIES = {
+    # This screen-space camera canvas is copied into the capsule texture.
+    # Keep its top-left pivot and cover the doubled render target completely.
+    "Capsule3DView/Canvas/BgRoot": (2.0, 2.0),
     "Poketch/Window/Poketch": (POKETCH_SMALL_SCALE, POKETCH_SMALL_SCALE),
     # Compensate for the 2x trainer-card RenderTexture supersampling hook.
     "CardModelView/ModelRoot/BadgeCase/Canvas/BgRoot": (2.0, 2.0),
@@ -140,6 +142,17 @@ BATTLE_INTRO_BALL_X_OFFSETS = {
 
 ANCHORED_POSITION_X_OFFSETS = {
     **BATTLE_INTRO_BALL_X_OFFSETS,
+    # UISeal resets the tray parent's position when entering edit mode.
+    # Its nested canvas retains the 1280-unit center, so move all artwork
+    # within that runtime-controlled parent by the missing half-width.
+    **{
+        f"Seal/Window/BGRoot/BG/CupsuleBase/{child}": 220.0
+        for child in (
+            "Image_line", "Image_base_center", "Image_base_left", "Image_base_right",
+            "Image_arrow_00_eff", "Image_arrow_01", "Image_arrow_02",
+            "Image_arrow_03", "Image_arrow_04",
+        )
+    },
     # Center the unknown-habitat banner in the space beside the left panel.
     "ZukanHabitat/Window/Map/Body/HabitatMap/NotFound": -6.0,
     # This top-right-pivoted window is positioned by its entrance/exit clips.
@@ -174,6 +187,9 @@ ANCHORED_POSITION_X_OFFSETS = {
 # their authored positions on every transition, so every curve representation
 # must be offset along with its serialized rest pose.
 ANIMATION_X_OFFSETS_BY_PATH_HASH = {
+    # Convert the capsule selector's center-anchored entrance positions to
+    # the same right-anchored frame as its serialized rect.
+    2592220292: (-640.0, ("Seal__",)),  # Scene_CupsuleList/CupsuleList
     # (offset, clip-name prefixes). The hashes are reused by unrelated clips,
     # so the resident bundle, component type, and clip names are constrained.
     1210394069: (-220.0, ("Map__", "MapWall__")),  # FacilityInfo
@@ -256,11 +272,7 @@ EDGE_POLICIES = {
     "PokemonSelect/Window/GoToBox": "right",
     "Report/Window/MainWindow": "left",
     "SealTemplate/Window/SealList": "right",
-    # The capsule pedestal and its orange direction markers remain authored
-    # in the original left-side frame. Keep the 2D capsule preview over that
-    # assembly instead of letting its center anchor move 220 units right when
-    # the window widens.
-    "Seal/Window/Scene_CupsuleList/Capsule/2D": "left",
+    "Seal/Window/Scene_CupsuleList/CupsuleList": "right",
     "ShopFlower/Window/SubWindow": "left",
     "LevelUp/Window/StatusPanel": "right",
     "RotomSelect/Window/MessageWindowRoot": "right",
@@ -787,6 +799,23 @@ def write_exefs_patch(source: Path, destination: Path) -> None:
 0137E7F8 2128211E // touch Y *= 2
 0137E7FC FD7BC1A8 // restore LR
 0137E800 C0035FD6 // ret
+// Capsule3DViewController creates its RenderTexture from logical UI units,
+// but Raycast and GetScreenPosition use physical screen coordinates. Match
+// the 2x CanvasScaler so both camera conversions agree with the visible
+// capsule. Double both dimensions to preserve the list/editor camera aspect.
+01A28E38 7356E597 // BL 0x0137E804 instead of fcvtzs w1,s8
+0137E804 0829281E // fadd s8,s8,s8
+0137E808 2929291E // fadd s9,s9,s9
+0137E80C 0101381E // displaced fcvtzs w1,s8
+0137E810 C0035FD6 // ret; original height conversion consumes doubled s9
+// Capsule2D grid indices divide world-space UI distances by cell size.
+// Scale the cell spacing once before the loop to match the 2x canvas;
+// otherwise adjacent cells get indices two apart and directional moves fail.
+01A28244 7459E597 // BL 0x0137E814 instead of mov v9.16b,v1.16b
+0137E814 291CA14E // displaced mov v9.16b,v1.16b
+0137E818 0829281E // fadd s8,s8,s8 (cell width)
+0137E81C 2929291E // fadd s9,s9,s9 (cell height)
+0137E820 C0035FD6 // ret; next original function starts at 0x0137E824
 """
     destination.parent.mkdir(parents=True, exist_ok=True)
     destination.write_text(text.replace(marker, additions + marker, 1), encoding="utf-8")
