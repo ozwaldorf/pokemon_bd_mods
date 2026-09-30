@@ -1,0 +1,134 @@
+Surf model tuning — 2026-09-30
+
+Dewgong (pm0087_00_00)
+  Settings retained after live size, tilt and position tuning with user feedback:
+  offset = 0, 0, 0.1
+  rotation = -10, 0, 0 degrees
+  scale = 1.2, 1.2, 1.2
+  Saved in placements.json for the next build.
+
+Empoleon (pm0395_00_00)
+  Settings retained after live size, tilt and position tuning with user feedback:
+  offset = 0, 0.25, -0.5
+  rotation = 55, 0, 0 degrees
+  scale = 1, 1, 1
+  Saved in placements.json for the next build.
+
+Feraligatr (pm0160_00_00)
+  Settings retained after live tilt and position tuning with user feedback:
+  offset = 0, 0.25, -0.25
+  rotation = 25, 0, 0 degrees
+  scale = 0.7, 0.7, 0.7
+  Saved in placements.json for the next build.
+
+Swampert (pm0260_00_00)
+  Settings retained after live tilt and position tuning with user feedback:
+  offset = 0, 0.35, 0.1
+  rotation = -10, 0, 0 degrees
+  scale = 0.7, 0.7, 0.7
+  Saved in placements.json for the next build.
+
+Milotic (pm0350_00_00)
+  Settings retained after live position tuning with user feedback:
+  offset = -0.5, 0.5, 0
+  rotation = 0, 0, 0 degrees
+  scale = 0.7, 0.7, 0.7
+  Saved in placements.json for the next build.
+
+Mantine (pm0226_00_00)
+  Settings retained after live size, tilt and position tuning with user feedback:
+  offset = 0, 0.35, 0.1
+  rotation = -5, 0, 0 degrees
+  scale = 0.8, 0.8, 0.8
+  Saved in placements.json for the next build.
+
+Lanturn (pm0171_00_00)
+  Settings retained after live size, tilt and position tuning with user feedback:
+  offset = 0, -0.1, 0.3
+  rotation = -10, 0, 0 degrees
+  scale = 1.1, 1.1, 1.1
+  Saved in placements.json for the next build.
+
+Sharpedo (pm0319_00_00)
+  Settings retained after live height, tilt and size tuning with user feedback:
+  offset = 0, -0.1, 0
+  rotation = -10, 0, 0 degrees
+  scale = 0.8, 0.8, 0.8
+  Saved in placements.json for the next build.
+
+Wailord (pm0321_00_00)
+  Settings retained after live size and height tuning with user feedback:
+  offset = 0, -0.05, 0
+  rotation = 0, 0, 0 degrees
+  scale = 0.2, 0.2, 0.2
+  Saved in placements.json for the next build.
+
+Deferred idea: rider bobbing
+  Wailmer's idle animation bobs while the rider remains at a fixed height.
+  Investigate tracking an animated bone near the mount's back and applying
+  its vertical displacement to the rider's visual model each frame.
+  Identify an independent rider visual transform to avoid moving the mount
+  again through its parent. Keep gameplay position, collision, camera and
+  splash anchored. Restore the rider transform on dismount and model changes.
+  Existing update hook may support this; bone choice and evaluation order
+  still need checking. Deferred at user's request; no implementation yet.
+
+Wailmer (pm0320_00_00)
+  Settings retained after live height tuning with user feedback:
+  offset = 0, -0.75, 0
+  rotation = 0, 0, 0 degrees
+  scale = 0.7, 0.7, 0.7
+  Saved in placements.json for the next build.
+
+Lapras (pm0131_00_00)
+  Settings retained after user requested lowering the initial height by 0.25:
+  offset = 0, 0.25, 0
+  rotation = 0, 0, 0 degrees
+  scale = 0.7, 0.7, 0.7
+  Saved in placements.json for the next build.
+
+Blastoise (pm0009_00_00)
+  Final settings retained after live tuning with user feedback:
+  offset = 0, 0.25, 0
+  rotation = 20, 0, 0 degrees
+  scale = 0.7, 0.7, 0.7
+  Saved in placements.json for the next build.
+
+Floatzel (pm0419_00_00)
+  Screenshot-tuned candidate; stationary view only, pending user feedback.
+  Initial offset 0, 0.25, 0 and scale 0.7 left most of the model underwater.
+  offset = 0, 0.65, -0.5
+  rotation = 65, 0, 0 degrees
+  scale = 1.2, 1.2, 1.2
+  Body now visible beneath rider, tilted toward a swimming posture.
+  Saved in placements.json for the next build.
+  Before screenshot: /tmp/hidden-moves-floatzel-before.png
+  Earlier candidate screenshot (before user requested backward shift and less tilt):
+  /tmp/hidden-moves-floatzel-adjust2.png
+
+Full Surf model pass (2026-09-30)
+  Geometry inspected for all 127 species (126 TM95 learners plus Smeargle).
+  Remaining 90 models loaded and screenshot-checked in Eden; starting
+  placements saved in placements.json. Earlier 37 profiles retained exactly.
+  Stationary views only; movement, full idle cycles, summon previews and
+  appearance variants need separate verification. Player bobbing deferred.
+  Further seat refinement: Horsea, Seadra, Dratini, Dragonair, Lugia,
+  Pelipper, Azurill, Spheal and Rayquaza.
+  Report: /tmp/hidden-moves-live-checks/report.txt
+  Profiles/screenshots: /tmp/hidden-moves-live-checks/results.json
+
+Waterfall implementation (2026-09-30)
+  Added first Waterfall user selection, cut-in redirection and return to Surf.
+  Shares saved Surf placements; no reload for a member knowing both moves.
+  Native transition/preview/fallback tests and metadata checks passed.
+  In-game waterfall traversal still needs verification after restart.
+  Report: /tmp/hidden-moves-waterfall-report.txt
+
+Waterfall runtime and dialogue (2026-09-30)
+  User confirmed the climb and party-member slide-in work after teaching Waterfall.
+  Added English Surf/Waterfall success messages using eligible party nickname.
+  Copies resident labels/words per use with GC roots and write barriers;
+  recalculates text width and preserves original wording for missing users.
+  Native tests passed: nickname/Unicode, Surf and Waterfall, resident-data
+  preservation, no-user fallback, other messages and other languages unchanged.
+  Built/installed hashes verified. Dialogue still needs an in-game check.

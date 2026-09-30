@@ -1,0 +1,32 @@
+set shell := ["bash", "-euo", "pipefail", "-c"]
+
+romfs := "../extracted/romfs"
+
+# Set up the project's Python environment.
+setup:
+    uv sync --frozen
+
+# Inspect player helper transforms and a prospective replacement model.
+inspect pokemon="pm0130_00_00" player="fc0001_00":
+    uv run python scripts/inspect_mount.py --romfs "{{romfs}}" --player "{{player}}" --pokemon "{{pokemon}}"
+
+# Syntax-check the inspection tool.
+check:
+    uv run python -c 'from pathlib import Path; [compile(p.read_bytes(), str(p), "exec") for p in Path("scripts").glob("*.py")]'
+
+# Build the native Surf prototype with the pinned devkitPro Docker image.
+build:
+    uv run python scripts/build_mod.py
+
+# Install the built mod into local Eden.
+install:
+    uv run python ../scripts/install_mod.py --source dist --name "Party Hidden Moves v1.3.0"
+    uv run python scripts/debug_mount.py init
+
+# List models or update the live debug configuration without rebuilding.
+debug *args:
+    uv run python scripts/debug_mount.py {{args}}
+
+# Exercise the native lifecycle with a mocked engine boundary.
+test:
+    uv run python scripts/build_mod.py --test-only
