@@ -58,7 +58,7 @@ def catalog():
     folder = PROJECT.parent / 'extracted/romfs/Data/StreamingAssets/AssetAssistant/Pokemon Database/pokemons/field'
     if folder.is_dir():
         return sorted(p.name for p in folder.iterdir() if p.is_file())
-    path = PROJECT / 'dist/model_catalog.txt'
+    path = PROJECT.parent / 'dist/Party Hidden Moves v1.3.0/model_catalog.txt'
     return path.read_text().splitlines() if path.exists() else []
 
 

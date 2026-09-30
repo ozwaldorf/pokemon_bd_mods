@@ -65,7 +65,7 @@ just install-ultrawide
 ```
 
 The build patches the original UI assets and includes
-`ultrawide-v1.3.0.pchtxt`, then writes the generated mod to `ultrawide/dist/`.
+`ultrawide-v1.3.0.pchtxt`, then writes the generated mod to `dist/3440x1440 21.9 Complete UI v1.3.0/`.
 Installation copies it to
 `~/.local/share/eden/load/0100000011D90000/3440x1440 21.9 Complete UI v1.3.0/`.
 Restart the game after installing. Enable **stretch to window** and the

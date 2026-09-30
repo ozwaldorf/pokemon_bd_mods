@@ -89,7 +89,8 @@ just build-hidden-moves
 
 All commands run from the repository root; `just --list` shows them all.
 Both projects share the root Python environment.
-Generated mod output lives in each project's `dist/` directory.
+Generated mods are written to `dist/`, one directory per mod named as Eden
+expects, so each can be copied directly into the load directory.
 See the [ultrawide instructions](ultrawide/README.md#development) or
 [hidden-moves instructions](hidden-moves/README.md#development) for checks,
 installation, and in-game testing.

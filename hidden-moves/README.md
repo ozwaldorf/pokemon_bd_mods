@@ -68,7 +68,7 @@ just install-hidden-moves
 ```
 
 The build fetches the pinned ExLaunch framework and uses the Switch toolchain
-provided by Nix, then writes the generated mod to `hidden-moves/dist/`. Installation
+provided by Nix, then writes the generated mod to `dist/Party Hidden Moves v1.3.0/`. Installation
 copies it to
 `~/.local/share/eden/load/0100000011D90000/Party Hidden Moves v1.3.0/` and
 initializes the live debug configuration. Restart the game after installing.

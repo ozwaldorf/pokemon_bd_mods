@@ -131,7 +131,7 @@ def placements(source: Path, target: Path) -> None:
 
 
 def check_ultrawide_overlap(hooks: dict) -> None:
-    patches = PROJECT.parent / "ultrawide/dist/exefs"
+    patches = PROJECT.parent / "dist/3440x1440 21.9 Complete UI v1.3.0/exefs"
     if not patches.exists():
         return
     def check_range(path: Path, offset: int, length: int) -> None:
@@ -255,7 +255,7 @@ def main() -> None:
     validate_process_descriptor(npdm)
     if (artifacts / "subsdk9").read_bytes()[:4] != b"NSO0":
         raise ValueError("Native module is not an NSO")
-    dist = PROJECT / "dist"
+    dist = PROJECT.parent / "dist/Party Hidden Moves v1.3.0"
     (dist / "exefs").mkdir(parents=True, exist_ok=True)
     for name in ("subsdk9", "main.npdm"):
         shutil.copy2(artifacts / name, dist / "exefs" / name)

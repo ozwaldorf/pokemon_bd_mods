@@ -3,7 +3,7 @@
 /extracted/
 
 # Generated mod output
-**/dist/
+/dist/
 **/build/
 
 # Locally cloned/built third-party tools and Python environments
