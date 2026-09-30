@@ -19,6 +19,9 @@ from pathlib import Path
 import lz4.block
 from npdm import validate_process_descriptor
 
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "scripts"))
+from staging import staged_directory
+
 
 PROJECT = Path(__file__).resolve().parents[1]
 FRAMEWORK_URL = "https://github.com/TeamLumi/Luminescent_ExLaunch.git"
@@ -263,43 +266,44 @@ def main() -> None:
     validate_process_descriptor(npdm)
     if (artifacts / "subsdk9").read_bytes()[:4] != b"NSO0":
         raise ValueError("Native module is not an NSO")
-    dist = PROJECT.parent / "dist/Party Hidden Moves v1.3.0"
-    (dist / "exefs").mkdir(parents=True, exist_ok=True)
-    for name in ("subsdk9", "main.npdm"):
-        shutil.copy2(artifacts / name, dist / "exefs" / name)
-    for name in ("LICENSE", "NOTICE"):
-        shutil.copy2(framework / name, dist / name)
-    shutil.copy2(PROJECT / "README.md", dist / "README.md")
-    model_directory = PROJECT.parent / "extracted/romfs/Data/StreamingAssets/AssetAssistant/Pokemon Database/pokemons/field"
-    if model_directory.is_dir():
-        (dist / "model_catalog.txt").write_text("\n".join(sorted(p.name for p in model_directory.iterdir() if p.is_file())) + "\n")
-    # Include the complete built framework and authored source for review and
-    # redistribution. The archive contains no extracted game data.
-    with tarfile.open(dist / "source.tar.gz", "w:gz") as archive:
-        for name in ("include", "cmake", "module", "src", "CMakeLists.txt", "config.cmake"):
-            archive.add(work / name, arcname=f"HiddenMoves/{name}")
+    target = PROJECT.parent / "dist/Party Hidden Moves v1.3.0"
+    with staged_directory(target) as dist:
+        (dist / "exefs").mkdir()
+        for name in ("subsdk9", "main.npdm"):
+            shutil.copy2(artifacts / name, dist / "exefs" / name)
         for name in ("LICENSE", "NOTICE"):
-            archive.add(framework / name, arcname=f"HiddenMoves/{name}")
-    manifest = {
-        "title_id": "0100000011D90000", "version": "1.3.0", "build_id": BUILD_ID,
-        "framework": {"url": FRAMEWORK_URL, "revision": FRAMEWORK_REV},
-        "toolchain": {
-            "devkitpro": str(devkitpro),
-            "compiler": subprocess.check_output([str(compiler), "--version"],
-                                                text=True).splitlines()[0],
-            "flake_lock_sha256": hashlib.sha256(
-                (PROJECT.parent / "flake.lock").read_bytes()).hexdigest(),
-        },
-        "hooks": hooks,
-        "placements": json.loads((PROJECT / "placements.json").read_text()),
-        "native_lifecycle_tests_passed": True,
-        "eden_0_2_1_metadata_validated": True,
-        "runtime_tested": False,
-        "sha256": {name: hashlib.sha256((dist / "exefs" / name).read_bytes()).hexdigest()
-                   for name in ("subsdk9", "main.npdm")},
-    }
-    (dist / "build_manifest.json").write_text(json.dumps(manifest, indent=2) + "\n")
-    print(f"Built hidden moves prototype: {dist}")
+            shutil.copy2(framework / name, dist / name)
+        shutil.copy2(PROJECT / "README.md", dist / "README.md")
+        model_directory = PROJECT.parent / "extracted/romfs/Data/StreamingAssets/AssetAssistant/Pokemon Database/pokemons/field"
+        if model_directory.is_dir():
+            (dist / "model_catalog.txt").write_text("\n".join(sorted(p.name for p in model_directory.iterdir() if p.is_file())) + "\n")
+        # Include the complete built framework and authored source for review and
+        # redistribution. The archive contains no extracted game data.
+        with tarfile.open(dist / "source.tar.gz", "w:gz") as archive:
+            for name in ("include", "cmake", "module", "src", "CMakeLists.txt", "config.cmake"):
+                archive.add(work / name, arcname=f"HiddenMoves/{name}")
+            for name in ("LICENSE", "NOTICE"):
+                archive.add(framework / name, arcname=f"HiddenMoves/{name}")
+        manifest = {
+            "title_id": "0100000011D90000", "version": "1.3.0", "build_id": BUILD_ID,
+            "framework": {"url": FRAMEWORK_URL, "revision": FRAMEWORK_REV},
+            "toolchain": {
+                "devkitpro": str(devkitpro),
+                "compiler": subprocess.check_output([str(compiler), "--version"],
+                                                    text=True).splitlines()[0],
+                "flake_lock_sha256": hashlib.sha256(
+                    (PROJECT.parent / "flake.lock").read_bytes()).hexdigest(),
+            },
+            "hooks": hooks,
+            "placements": json.loads((PROJECT / "placements.json").read_text()),
+            "native_lifecycle_tests_passed": True,
+            "eden_0_2_1_metadata_validated": True,
+            "runtime_tested": False,
+            "sha256": {name: hashlib.sha256((dist / "exefs" / name).read_bytes()).hexdigest()
+                       for name in ("subsdk9", "main.npdm")},
+        }
+        (dist / "build_manifest.json").write_text(json.dumps(manifest, indent=2) + "\n")
+    print(f"Built hidden moves prototype: {target}")
 
 
 if __name__ == "__main__":

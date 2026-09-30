@@ -10,6 +10,8 @@ import subprocess
 import tempfile
 from pathlib import Path
 
+from staging import replace_directory
+
 PROJECT = Path(__file__).resolve().parents[1]
 
 
@@ -66,15 +68,7 @@ def main() -> None:
             str(work / "update" / f"{update_id}.nca"))
         if not (merged / "exefs/main").is_file() or not any((merged / "romfs").iterdir()):
             raise ValueError("Extraction did not produce ExeFS main and RomFS data")
-        previous = work / "previous"
-        if output.exists():
-            output.rename(previous)
-        try:
-            merged.rename(output)
-        except OSError:
-            if previous.exists():
-                previous.rename(output)
-            raise
+        replace_directory(merged, output)
     print(f"Merged game files written to {output}")
 
 

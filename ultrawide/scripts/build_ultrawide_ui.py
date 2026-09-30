@@ -12,10 +12,14 @@ import argparse
 import json
 import re
 import struct
+import sys
 from collections import defaultdict
 from pathlib import Path
 
 import UnityPy
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "scripts"))
+from staging import staged_directory
 
 
 REFERENCE_WIDTH = 1280.0
@@ -922,21 +926,14 @@ def write_exefs_patch(source: Path, destination: Path) -> None:
     destination.write_text(text.replace(marker, additions + marker, 1), encoding="utf-8")
 
 
-def main() -> None:
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--romfs", required=True, type=Path)
-    parser.add_argument("--pchtxt", required=True, type=Path)
-    parser.add_argument("--output", required=True, type=Path)
-    args = parser.parse_args()
-
+def build(romfs: Path, pchtxt: Path, output: Path) -> dict:
     source_ui = (
-        args.romfs
+        romfs
         / "Data"
         / "StreamingAssets"
         / "AssetAssistant"
         / "UIs"
-    ).resolve()
-    output = args.output.resolve()
+    )
     output_ui = (
         output
         / "romfs"
@@ -955,7 +952,7 @@ def main() -> None:
         if changes:
             bundle_counts[str(relative)] = len(changes)
 
-    resources_source = args.romfs / "Data" / "resources.assets"
+    resources_source = romfs / "Data" / "resources.assets"
     resources_relative = Path("Data/resources.assets")
     resource_changes = patch_resources(
         resources_source,
@@ -966,7 +963,7 @@ def main() -> None:
         bundle_counts[str(resources_relative)] = len(resource_changes)
 
     battle_effects_root = (
-        args.romfs
+        romfs
         / "Data"
         / "StreamingAssets"
         / "AssetAssistant"
@@ -995,7 +992,7 @@ def main() -> None:
         )
         all_changes.extend(changes)
         if changes:
-            relative = source.relative_to(args.romfs)
+            relative = source.relative_to(romfs)
             bundle_counts[str(relative)] = len(changes)
 
     # Trainer and wild encounter transitions begin in the field scene. Their
@@ -1018,11 +1015,11 @@ def main() -> None:
         )
         all_changes.extend(changes)
         if changes:
-            relative = source.relative_to(args.romfs)
+            relative = source.relative_to(romfs)
             bundle_counts[str(relative)] = len(changes)
 
     exefs = output / "exefs"
-    write_exefs_patch(args.pchtxt, exefs / args.pchtxt.name)
+    write_exefs_patch(pchtxt, exefs / pchtxt.name)
 
     attribution = Path(__file__).resolve().parents[1] / "ATTRIBUTION.md"
     (output / "ATTRIBUTION.md").write_bytes(attribution.read_bytes())
@@ -1058,6 +1055,9 @@ The generated asset changes are listed in `ui_patch_manifest.json`.
         encoding="utf-8",
     )
 
+    # Record bundles relative to RomFS so the manifest has no local paths.
+    for change in all_changes:
+        change["bundle"] = Path(change["bundle"]).relative_to(romfs).as_posix()
     manifest = {
         "reference_resolution": [REFERENCE_WIDTH, REFERENCE_HEIGHT],
         "changed_bundle_count": len(bundle_counts),
@@ -1069,6 +1069,19 @@ The generated asset changes are listed in `ui_patch_manifest.json`.
         json.dumps(manifest, indent=2, ensure_ascii=False) + "\n",
         encoding="utf-8",
     )
+    return manifest
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--romfs", required=True, type=Path)
+    parser.add_argument("--pchtxt", required=True, type=Path)
+    parser.add_argument("--output", required=True, type=Path)
+    args = parser.parse_args()
+    output = args.output.resolve()
+    # Build into a fresh directory so files from earlier builds never ship.
+    with staged_directory(output) as staged:
+        manifest = build(args.romfs.resolve(), args.pchtxt, staged)
     print(
         json.dumps(
             {
