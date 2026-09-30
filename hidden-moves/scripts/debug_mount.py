@@ -150,13 +150,6 @@ def main():
             save_profile(placements, defaults, move)
         except (ValueError, KeyError, TypeError) as error:
             parser.error(f'Cannot save model settings: {error}')
-        if move == 'rock-climb' and args.command == 'set' and any(
-                getattr(args, key) is not None for key in PLACEMENT_KEYS):
-            match = re.fullmatch(r'pm(\d{4})_00_00', defaults['model'])
-            if match:
-                manual = set(placements.get('rock_climb_manual_species', []))
-                manual.add(int(match[1]))
-                placements['rock_climb_manual_species'] = sorted(manual)
         atomic_write(args.placements, json.dumps(placements, indent=2) + '\n')
     text = '# Live hidden move preview; enabled=0 restores normal party selection.\n'
     text += f'# placement_scope={move}\n'

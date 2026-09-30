@@ -38,7 +38,6 @@ class PlacementScopeTests(unittest.TestCase):
             self.assertEqual(saved['species']['9'], water)
             self.assertEqual(saved['models']['pm0009_00_00'], water)
             self.assertEqual(saved['rock_climb']['9']['offset'], [0, 1.45, -1.1])
-            self.assertEqual(saved['rock_climb_manual_species'], [9])
             run('off')
             self.assertIn('# placement_scope=rock-climb', config.read_text())
             run('--move', 'surf', 'set', '--model', '9')

@@ -54,7 +54,7 @@ cd hidden-moves
 just setup
 ```
 
-The build and inspection scripts expect `../extracted/exefs/main` and
+The build and live tuning tools use `../extracted/exefs/main` and
 `../extracted/romfs/Data/`. This extraction is shared with ultrawide; if you
 already created it, reuse it. Keep these original files untouched. Private
 dumps, keys, extracted files, and generated output are Git-ignored.

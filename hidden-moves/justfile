@@ -1,16 +1,10 @@
 set shell := ["bash", "-euo", "pipefail", "-c"]
 
-romfs := "../extracted/romfs"
-
 # Set up the project's Python environment.
 setup:
     uv sync --frozen
 
-# Inspect player helper transforms and a prospective replacement model.
-inspect pokemon="pm0130_00_00" player="fc0001_00":
-    uv run python scripts/inspect_mount.py --romfs "{{romfs}}" --player "{{player}}" --pokemon "{{pokemon}}"
-
-# Syntax-check the inspection tool.
+# Syntax-check the Python tools.
 check:
     uv run python -c 'from pathlib import Path; [compile(p.read_bytes(), str(p), "exec") for p in Path("scripts").glob("*.py")]'
 
