@@ -35,6 +35,21 @@ ENCOUNTER_BAND_NAMES = {"top_high", "top_low", "under_high", "under_low"}
 # 220/720 of the screen height is 0.458333 world units.
 CAPSULE_LIST_CAMERA_ROOT_X = -0.6 + (220.0 / REFERENCE_HEIGHT * 1.5)
 
+# The display is 640x480, but its bezel is 940x962. Fit the entire expanded
+# watch within the 720-unit canvas. Its bezel extends 4 units right and 12
+# units above the root pivot; compensate at each scale to meet both edges.
+POKETCH_LARGE_SCALE = 0.7
+POKETCH_SMALL_SCALE = 0.4
+# The reduced bezel can expose a thin filtered edge at fractional pixels.
+# Let it overlap the top/right edges by four UI units in collapsed mode;
+# two units still leave a 1–2 pixel seam in the game's filtered output.
+POKETCH_SMALL_EDGE_OVERLAP = 4.0
+
+
+def poketch_position(scale: float) -> tuple[float, float]:
+    overlap = POKETCH_SMALL_EDGE_OVERLAP if abs(scale - POKETCH_SMALL_SCALE) < 0.01 else 0.0
+    return -4.0 * scale + overlap, -12.0 * scale + overlap
+
 BACKGROUND_NAMES = re.compile(
     r"^(BG|BGBorder|Image_BG|WhiteFade|DarkScreen|FadeImage|Frash[1-7])$",
     re.IGNORECASE,
@@ -72,11 +87,15 @@ STRETCH_PATHS = {
     "Map/Window/Map",
     "MapWall/Window",
     "MapWall/Window/Map",
+    # Habitat has its own viewport and mask, separate from the town map.
+    "ZukanHabitat/Window/Map",
+    "ZukanHabitat/Window/Map/Body",
 }
 
 # Local scales needed inside off-screen render scenes.  These transforms are
 # not screen layout roots, so stretching their anchors would be incorrect.
 LOCAL_SCALE_POLICIES = {
+    "Poketch/Window/Poketch": (POKETCH_SMALL_SCALE, POKETCH_SMALL_SCALE),
     # Compensate for the 2x trainer-card RenderTexture supersampling hook.
     "CardModelView/ModelRoot/BadgeCase/Canvas/BgRoot": (2.0, 2.0),
     # Fill the full 720-unit height from the panel's bottom-left pivot.
@@ -106,9 +125,27 @@ PIVOT_POLICIES = {
 }
 
 ANCHORED_POSITION_OVERRIDES = {
+    "Poketch/Window/Poketch": poketch_position(POKETCH_SMALL_SCALE),
+}
+
+# Move all trainer-intro artwork together inside the runtime-animated plate.
+# Keep the plate's authored rect and tween endpoints: shifting its two visual
+# children moves the complete arrow and all balls without resizing the line.
+BATTLE_INTRO_BALL_X_OFFSETS = {
+    "BattleViewUISystem/BallPlate/BUIBallPlate_Near/Image_Arrow": 220.0,
+    "BattleViewUISystem/BallPlate/BUIBallPlate_Near/BallIcons": 220.0,
+    "BattleViewUISystem/BallPlate/BUIBallPlate_Far/Image_Arrow": -220.0,
+    "BattleViewUISystem/BallPlate/BUIBallPlate_Far/BallIcons": -220.0,
 }
 
 ANCHORED_POSITION_X_OFFSETS = {
+    **BATTLE_INTRO_BALL_X_OFFSETS,
+    # Center the unknown-habitat banner in the space beside the left panel.
+    "ZukanHabitat/Window/Map/Body/HabitatMap/NotFound": -6.0,
+    # This top-right-pivoted window is positioned by its entrance/exit clips.
+    # Preserve that fixed coordinate frame and move its pivot to the new
+    # canvas right edge; stretching it makes the clips push it off-screen.
+    "Poketch/Window": (ULTRAWIDE_WIDTH - REFERENCE_WIDTH) / 2.0,
     # This widened image is centered by a nested 1280-wide canvas. Shift it by
     # half the added canvas width so it covers physical X=0..1720 instead of
     # extending from X=-220..1500.
@@ -145,6 +182,20 @@ ANIMATION_X_OFFSETS_BY_PATH_HASH = {
 }
 
 SIZE_X_OVERRIDES = {
+    "Poketch/Window": ULTRAWIDE_WIDTH,
+    # The description's brown panel grows with the status-page background.
+    # Expand its striped paper and sliced frame together around the existing
+    # preview center. Leave a narrow brown border and the square model output
+    # at its original size, so the Pokemon itself is not stretched.
+    **{
+        f"{window}/Window/ZukanDescriptionPanel/ModelViewParent/ModelView{child}": 990.0
+        for window in ("Zukan", "ZukanRegister")
+        for child in ("", "/Offset", "/Offset/BG")
+    },
+    # Extend only the ocean backing; keep map tiles and habitat coordinates
+    # at their authored scale inside the wider clipping frame.
+    "ZukanHabitat/Window/Map/Body/HabitatMap/Body/Image_Base": 1940.0,
+    "ZukanHabitat/Window/Map/Body/HabitatMap/NotFound": ULTRAWIDE_WIDTH - 396.0,
     # Battle code animates these parents to anchored X=0 at runtime. Keep
     # their centered anchors and widen the coordinate frames so right-anchored
     # command controls land on the physical screen edge.
@@ -375,6 +426,10 @@ def patch_bundle(source: Path, destination: Path) -> list[dict]:
         elif path in ANCHORED_POSITION_X_OFFSETS:
             offset = ANCHORED_POSITION_X_OFFSETS[path]
             rect.m_AnchoredPosition.x += offset
+            if path in BATTLE_INTRO_BALL_X_OFFSETS:
+                # Keep the serialized transform position consistent with the
+                # rect position before battle startup caches local transforms.
+                rect.m_LocalPosition.x += offset
             action = f"position_x_plus_{offset:g}"
         elif path in POSITION_X_MULTIPLIERS:
             multiplier = POSITION_X_MULTIPLIERS[path]
@@ -464,6 +519,24 @@ def patch_bundle(source: Path, destination: Path) -> list[dict]:
             game_object = component.m_GameObject.read()
         except Exception:
             continue
+        if game_object.m_Name == "Poketch" and hasattr(component, "_largeScale"):
+            component._smallScale = POKETCH_SMALL_SCALE
+            component._largeScale = POKETCH_LARGE_SCALE
+            for position, scale in (
+                (component._smallPos, component._smallScale),
+                (component._largePos, component._largeScale),
+            ):
+                position.x, position.y = poketch_position(scale)
+            component.save()
+            changes.append(
+                {
+                    "bundle": str(source),
+                    "path": "Poketch/resizeDefaults",
+                    "path_id": obj.path_id,
+                    "action": "large_scale_0.7_align_bezel_top_right",
+                }
+            )
+            continue
         if game_object.m_Name != "Capsule3DView" or not hasattr(
             component, "listModeDefault"
         ):
@@ -494,6 +567,38 @@ def patch_bundle(source: Path, destination: Path) -> list[dict]:
             continue
         bindings = binding_constant.genericBindings
         values = clip.m_MuscleClip.m_ValueArrayDelta
+        if clip.m_Name.startswith("Poketch__"):
+            # Transform scale bindings occupy three scalar curves, unlike
+            # RectTransform property bindings. Account for them before finding
+            # the Window's anchored X curve in these packed clips.
+            widths = [
+                3 if binding.typeID == 4 and binding.attribute == 3 else 1
+                for binding in bindings
+            ]
+            if sum(widths) != len(values):
+                raise ValueError(
+                    f"Unsupported Poketch animation layout in {clip.m_Name}"
+                )
+            curve_index = 0
+            for binding, width in zip(bindings, widths):
+                if (
+                    binding.path == 0
+                    and binding.typeID == 224
+                    and binding.attribute == 1460864421  # m_AnchoredPosition.x
+                ):
+                    offset = ANCHORED_POSITION_X_OFFSETS["Poketch/Window"]
+                    offset_animation_curve(clip, curve_index, offset)
+                    changes.append(
+                        {
+                            "bundle": str(source),
+                            "path": f"AnimationClip/{clip.m_Name}",
+                            "path_id": obj.path_id,
+                            "action": f"window_position_x_plus_{offset:g}",
+                        }
+                    )
+                curve_index += width
+            clip.save()
+            continue
         target_indices = [
             index
             for index, binding in enumerate(bindings)
@@ -560,7 +665,7 @@ def patch_resources(source: Path, destination: Path) -> list[dict]:
 
 
 def patch_encounter_effect(source: Path, destination: Path) -> list[dict]:
-    """Widen fixed-width encounter screen layers.
+    """Widen fixed-width encounter and Hidden Move screen layers.
 
     Field transitions and battle setup effects use size3D billboards exactly
     3.6 units wide for full-screen color bands, fades, flashes, and overlays.
@@ -613,6 +718,37 @@ def write_exefs_patch(source: Path, destination: Path) -> None:
     if old_model_bg not in text:
         raise ValueError("Missing expected Pokémon model-background scale patch")
     text = text.replace(old_model_bg, new_model_bg, 1)
+    # The Motion/Cry background already follows the widened model viewport.
+    # SetupKeyguide can run repeatedly, so adding 220 to its local X there
+    # both displaces the rendered backdrop and accumulates on later calls.
+    moving_bg_hook = "01BBCF0C 8905DF97 // Chorus/Filter background centering helper"
+    if moving_bg_hook not in text:
+        raise ValueError("Missing expected Motion/Cry background hook")
+    text = text.replace(
+        moving_bg_hook,
+        "01BBCF0C F40300AA // original mov x20,x0; keep Motion/Cry background centered",
+        1,
+    )
+    # Cursor control is active only in expanded mode. Its bounds and button
+    # reach are in physical pixels: authored units * 2x CanvasScaler * scale.
+    # The upstream patch assumes scale=1, leaving a much larger clamp box
+    # than the visible display after shrinking the complete watch to fit.
+    def mov_float_w8(value: float) -> str:
+        bits = float_to_uint32(value)
+        if bits & 0xFFFF:
+            raise ValueError(f"Poketch bound needs a two-instruction float: {value}")
+        return struct.pack("<I", 0x52A00008 | ((bits >> 16) << 5)).hex().upper()
+
+    replacements = (
+        ("01E698B0 1F2003D5", f"01E698B0 {mov_float_w8(640 * POKETCH_LARGE_SCALE)}"),
+        ("01E698C8 1F2003D5", f"01E698C8 {mov_float_w8(480 * POKETCH_LARGE_SCALE)}"),
+        ("01E68A98 4880A852", f"01E68A98 {mov_float_w8(520 * POKETCH_LARGE_SCALE)}"),
+        ("01E68AC0 8871A852", f"01E68AC0 {mov_float_w8(280 * POKETCH_LARGE_SCALE)}"),
+    )
+    for old, new in replacements:
+        if old not in text:
+            raise ValueError(f"Missing expected Poketch patch: {old}")
+        text = re.sub(re.escape(old) + r"[^\n]*", new + " // resized Poketch screen-space extent", text, count=1)
     additions = """// Full-width encounter band coverage
 // Double the RawImage rect dimensions before creating its RenderTexture.
 01A30B38 1637E597 // BL 0x0137E790
@@ -632,6 +768,22 @@ def write_exefs_patch(source: Path, destination: Path) -> None:
 01F7C5AC 01AE8152 // color target: mov w1,#3440
 01F7C60C 01AE8152 // depth target: mov w1,#3440
 01F7C670 01AE8152 // copied depth target: mov w1,#3440
+// Poketch touch input: Switch touch coordinates remain 1280x720 even when
+// the render output is 3440x1440. Scale the GetTouch position only; mouse
+// input and gamepad cursor positions already use rendered screen pixels.
+01E67858 E35BD497 // Touch.get_position -> scaled touch helper
+01E698B4 0801271E // half-width constant: fmov s8,w8
+01E698CC 0901271E // half-height constant: fmov s9,w8
+// Use the remaining cave after the post-catch helper at 0x0137E7A0;
+// end before the next function at 0x0137E824.
+0137E7E4 FD7BBFA9 // save LR
+0137E7E8 4AB76294 // Touch.get_position
+0137E7EC 8805A852 // mov w8,#0x402c0000 (3440/1280 = 2.6875)
+0137E7F0 0201271E // fmov s2,w8
+0137E7F4 0008221E // touch X *= 2.6875
+0137E7F8 2128211E // touch Y *= 2
+0137E7FC FD7BC1A8 // restore LR
+0137E800 C0035FD6 // ret
 """
     destination.parent.mkdir(parents=True, exist_ok=True)
     destination.write_text(text.replace(marker, additions + marker, 1), encoding="utf-8")
@@ -718,7 +870,13 @@ def main() -> None:
     # ``back`` billboard is authored at 16:9 and needs the same X correction.
     field_effects_root = battle_effects_root.parent / "field"
     output_field_effects_root = output_battle_effects_root.parent / "field"
-    for source in sorted(field_effects_root.glob("ef_f_encount*")):
+    # Hidden Move cut-ins use the same 3.6-unit opaque ``back`` billboard.
+    # Include that effect without widening the other move effects in-world.
+    field_screen_effects = [
+        *field_effects_root.glob("ef_f_encount*"),
+        field_effects_root / "ef_f_waza_hiddenwaza_01",
+    ]
+    for source in sorted(field_screen_effects):
         if not source.is_file():
             continue
         changes = patch_encounter_effect(

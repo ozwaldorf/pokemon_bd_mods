@@ -1,6 +1,6 @@
 set shell := ["bash", "-euo", "pipefail", "-c"]
 
-romfs := "extracted/romfs"
+romfs := "../extracted/romfs"
 pchtxt := "ultrawide-v1.3.0.pchtxt"
 output := "dist"
 device_mod := "/sdcard/Android/data/dev.eden.eden_emulator.nightly/files/load/0100000011D90000/[3440x1440 21.9 Complete UI v1.3.0]"
@@ -10,9 +10,9 @@ extract:
     #!/usr/bin/env bash
     set -euo pipefail
 
-    base_nsp="dumps/base.nsp"
-    update_nsp="dumps/update.nsp"
-    keys="dumps/prod.keys"
+    base_nsp="../dumps/base.nsp"
+    update_nsp="../dumps/update.nsp"
+    keys="../dumps/prod.keys"
 
     for input in "$base_nsp" "$update_nsp" "$keys"; do
       if [[ ! -f "$input" ]]; then
@@ -51,11 +51,11 @@ extract:
       --exefsdir "$work_dir/output/exefs" \
       "$work_dir/update/$update_program.nca" >/dev/null
 
-    if [[ -e extracted ]]; then
-      find extracted -depth -delete
+    if [[ -e ../extracted ]]; then
+      find ../extracted -depth -delete
     fi
-    mv "$work_dir/output" extracted
-    echo "Merged v1.3.0 files written to extracted/"
+    mv "$work_dir/output" ../extracted
+    echo "Merged v1.3.0 files written to ../extracted/"
 
 # Build the mod from the untouched v1.3.0 extraction.
 build:
@@ -87,6 +87,10 @@ push:
     adb shell 'rm -rf "{{device_mod}}"'
     adb shell 'mkdir -p "{{device_mod}}"'
     adb push "{{output}}/." "{{device_mod}}/"
+
+# Install the built mod into local Eden.
+install:
+    uv run python ../scripts/install_mod.py --source "{{output}}" --name "[3440x1440 21.9 Complete UI v1.3.0]"
 
 # Compile-check maintained Python sources.
 check:

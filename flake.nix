@@ -1,5 +1,5 @@
 {
-  description = "Pokémon Brilliant Diamond ultrawide mod development shell";
+  description = "Shared Pokémon Brilliant Diamond mod development shell";
 
   inputs.nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
   inputs.il2cppdumper-src = {

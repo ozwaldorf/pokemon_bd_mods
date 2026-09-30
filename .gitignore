@@ -3,13 +3,14 @@
 /extracted/
 
 # Generated mod output
-/dist/
+**/dist/
+**/build/
 
 # Locally cloned/built third-party tools and Python environments
-/.venv/
+**/.venv/
 
 # Python and Nix output
 __pycache__/
 *.py[cod]
-/result
-/result-*
+result
+result-*
