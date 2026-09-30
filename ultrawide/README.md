@@ -46,27 +46,26 @@ extraction:
 
 ```sh
 nix develop
+just setup
 just extract
-cd ultrawide
-uv sync --frozen
 ```
 
-The patch scripts use `../extracted/exefs/main` and
-`../extracted/romfs/Data/`. This extraction is shared with hidden-moves; if you
+The patch scripts use `extracted/exefs/main` and
+`extracted/romfs/Data/`. This extraction is shared with hidden-moves; if you
 already created it, reuse it. Keep these original files untouched. Private
 dumps, keys, extracted files, and generated output are Git-ignored.
 
 ### Build and install
 
-Run these commands from `ultrawide/`, inside the development shell:
+Run these commands from the repository root, inside the development shell:
 
 ```sh
-just build
-just install
+just build-ultrawide
+just install-ultrawide
 ```
 
 The build patches the original UI assets and includes
-`ultrawide-v1.3.0.pchtxt`, then writes the generated mod to `dist/`.
+`ultrawide-v1.3.0.pchtxt`, then writes the generated mod to `ultrawide/dist/`.
 Installation copies it to
 `~/.local/share/eden/load/0100000011D90000/3440x1440 21.9 Complete UI v1.3.0/`.
 Restart the game after installing. Enable **stretch to window** and the
@@ -76,8 +75,7 @@ ultrawide patch is already included.
 The build targets title `0100000011D90000`, build
 `94CEAE325C205C4B9D6F7235552F28FD`.
 
-To enter the development shell again from this directory, run `nix develop ..`.
-Use `just check` to syntax-check the maintained Python scripts and `just audit`
+Use `just check` to syntax-check the maintained Python scripts and `just audit-ultrawide`
 to inspect the generated UI bundles. Audit reports are written to temporary
 directories; each command prints its output path.
 
@@ -87,7 +85,7 @@ With an Android device connected through ADB, run:
 
 ```sh
 adb devices
-just push
+just push-ultrawide
 ```
 
 This installs the built mod under

@@ -49,31 +49,29 @@ extraction:
 
 ```sh
 nix develop
-just extract
-cd hidden-moves
 just setup
+just extract
 ```
 
-The build and live tuning tools use `../extracted/exefs/main` and
-`../extracted/romfs/Data/`. This extraction is shared with ultrawide; if you
+The build and live tuning tools use `extracted/exefs/main` and
+`extracted/romfs/Data/`. This extraction is shared with ultrawide; if you
 already created it, reuse it. Keep these original files untouched. Private
 dumps, keys, extracted files, and generated output are Git-ignored.
 
 ### Build and install
 
-Run these commands from `hidden-moves/`, inside the development shell:
+Run these commands from the repository root, inside the development shell:
 
 ```sh
-just build
-just install
+just build-hidden-moves
+just install-hidden-moves
 ```
 
 The build fetches the pinned ExLaunch framework and uses the Switch toolchain
-provided by Nix, then writes the generated mod to `dist/`. Installation
+provided by Nix, then writes the generated mod to `hidden-moves/dist/`. Installation
 copies it to
 `~/.local/share/eden/load/0100000011D90000/Party Hidden Moves v1.3.0/` and
 initializes the live debug configuration. Restart the game after installing.
 
-To enter the development shell again from this directory, run `nix develop ..`.
-Use `just check` to syntax-check the Python scripts and `just test` to run the
+Use `just check` to syntax-check the Python scripts and `just test-hidden-moves` to run the
 native lifecycle checks with a mocked engine boundary.

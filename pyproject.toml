@@ -1,9 +1,10 @@
 [project]
-name = "pokemon-bd-ultrawide-tools"
+name = "pokemon-bd-mods-tools"
 version = "0.1.0"
-description = "Build and audit tools for the Pokémon Brilliant Diamond ultrawide UI mod"
+description = "Build tools for Pokemon Brilliant Diamond mods"
 requires-python = ">=3.12,<3.13"
 dependencies = [
+  "lz4==4.4.5",
   "UnityPy==1.25.3",
 ]
 

@@ -12,6 +12,7 @@ import re
 import shutil
 import struct
 import subprocess
+import sys
 import tarfile
 from pathlib import Path
 
@@ -229,7 +230,7 @@ def main() -> None:
     hooks = signatures(text, work / "src/mod/signatures.hpp")
     placements(PROJECT / "placements.json", work / "src/mod/placements.hpp")
     check_ultrawide_overlap(hooks)
-    run(str(PROJECT / ".venv/bin/python"), "-m", "unittest", "discover",
+    run(sys.executable, "-m", "unittest", "discover",
         "-s", str(PROJECT / "tests"), "-p", "test_*.py")
     if args.prepare_only:
         print(work)

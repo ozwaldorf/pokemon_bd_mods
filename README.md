@@ -58,6 +58,7 @@ From the repository root, run:
 
 ```sh
 nix develop
+just setup
 just extract
 ```
 
@@ -79,29 +80,21 @@ require keys that match your dumps. Run extraction inside `nix develop` so
 
 ### Build a project
 
-Stay in the development shell and choose one project:
+Stay in the development shell at the repository root and choose one project:
 
 ```sh
-cd ultrawide
-uv sync --frozen
-just build
+just build-ultrawide
+just build-hidden-moves
 ```
 
-Or, from the repository root:
-
-```sh
-cd hidden-moves
-just setup
-just build
-```
-
-Run each mod project's commands from its own directory.
+All commands run from the repository root; `just --list` shows them all.
+Both projects share the root Python environment.
 Generated mod output lives in each project's `dist/` directory.
 See the [ultrawide instructions](ultrawide/README.md#development) or
 [hidden-moves instructions](hidden-moves/README.md#development) for checks,
 installation, and in-game testing.
 
-Each project provides `just install` for local Eden at
+`just install-ultrawide` and `just install-hidden-moves` install into local Eden at
 `~/.local/share/eden/load/0100000011D90000/`. Restart the game after
 installing a new build.
 
