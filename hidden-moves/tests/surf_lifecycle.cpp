@@ -25,13 +25,16 @@ struct Managed {
     alignas(8) std::array<unsigned char, 2048> data{};
     bool living = true, enabled = true, egg = false, surf = false, waterfall = false, rock_climb = false;
     int species = 0;
+    std::vector<int> other_moves;
     game::Vector3 position{}, rotation{}, scale{};
+    game::Quaternion quaternion{};
 };
 std::map<void*, std::unique_ptr<Managed>> objects;
 std::map<int, void*> handles;
 std::vector<void*> party;
 void *player, *renderer, *anchor, *bundle, *request, *item, *cache, *prefab;
 void *model, *entity, *transform, *catalog, *animator, *animation, *skins, *skin, *mesh;
+void *fly_renderer, *fly_spine, *fly_waist, *player_animation;
 void *selected = nullptr, *parented_to = nullptr;
 bool pending = true, swimming = true, missing_prefab = false, missing_entity = false;
 bool missing_mesh = false, graph_ready = false, offscreen_updates = false;
@@ -44,6 +47,8 @@ bool missing_preview_params = false;
 bool waterfall_complete = false;
 bool rock_climb_complete = false, rock_climb_visible = false;
 bool dialogue_mode = false;
+bool fly_complete = false, missing_fly_anchor = false;
+int fly_original_calls = 0, played_animation = -1, player_culling = 1;
 void load_preview(void*, void* member, void*) { preview_member = member; }
 void load_debug_preview(void*, int species, uint16_t form, int sex, bool rare, void*) {
     assert(form == 0 && !rare);
@@ -101,8 +106,11 @@ void* member(void*, uint32_t index, void*) { return party.at(index); }
 bool is_null(void*, void*) { return false; }
 bool egg(void* obj, int type, void*) { assert(type == 2); return node(obj).egg; }
 bool knows(void* obj, int move, void*) {
-    assert(move == 57 || move == 127 || move == 431);
-    return move == 57 ? node(obj).surf : move == 127 ? node(obj).waterfall : node(obj).rock_climb;
+    if (move == 57) return node(obj).surf;
+    if (move == 127) return node(obj).waterfall;
+    if (move == 431) return node(obj).rock_climb;
+    const auto& moves = node(obj).other_moves;
+    return std::find(moves.begin(), moves.end(), move) != moves.end();
 }
 int unique(void* obj, void*) { selected = obj; return 1; }
 int species(void* obj, void*) { return node(obj).species; }
@@ -141,7 +149,7 @@ void destroy_graph(void* obj, void*) {
     assert(obj == animation && graph_ready); graph_ready = false; ++graph_destructions;
 }
 int idle_index(void*, void*) { return 0; }
-void play(void*, int index, float, float, void*) { assert(graph_ready && index == 0); }
+void play(void*, int index, float, float, void*) { assert(graph_ready && (index == 0 || index == 2)); played_animation = index; }
 void advance(void*, float, void*) { assert(graph_ready); ++animation_ticks; }
 void* instantiate(void* original, void* parent, bool world, void*) {
     assert(original == prefab && !world);
@@ -149,6 +157,11 @@ void* instantiate(void* original, void* parent, bool world, void*) {
     model = make(); entity = make(); transform = make();
     animator = make(); animation = make(); skins = make(); skin = make(); mesh = make();
     pointer(entity, 0xe0, animation);
+    auto* clips = make(); auto* flight_clip = make();
+    pointer(flight_clip, 0x80, make_text(u"pm0398_00_00_ba10_waitA01"));
+    size_t clip_count = 3;
+    std::memcpy(static_cast<char*>(clips)+0x18, &clip_count, sizeof(clip_count));
+    pointer(clips, 0x30, flight_clip); pointer(animation, 0x68, clips);
     size_t length = 1;
     std::memcpy(static_cast<unsigned char*>(skins) + 0x18, &length, sizeof(length));
     pointer(skins, 0x20, skin);
@@ -161,6 +174,17 @@ void set_rotation(void* obj, game::Vector3 value, void*) { node(obj).rotation = 
 void set_scale(void* obj, game::Vector3 value, void*) { node(obj).scale = value; }
 game::Vector3 get_position(void* obj, void*) { return node(obj).position; }
 game::Vector3 get_scale(void* obj, void*) { return node(obj).scale; }
+void* get_fly_root(void* obj, void*) { assert(obj == fly_renderer); return missing_fly_anchor ? nullptr : fly_spine; }
+void* get_parent(void* obj, void*) { assert(obj == fly_spine); return fly_waist; }
+game::Quaternion euler(game::Vector3 v, void*) {
+    constexpr float r = 0.00872664626f;
+    const float sx=std::sin(v.x*r),cx=std::cos(v.x*r),sy=std::sin(v.y*r),cy=std::cos(v.y*r),sz=std::sin(v.z*r),cz=std::cos(v.z*r);
+    return {cy*sx*cz+sy*cx*sz,sy*cx*cz-cy*sx*sz,cy*cx*sz-sy*sx*cz,cy*cx*cz+sy*sx*sz};
+}
+void set_quaternion(void* obj, game::Quaternion q, void*) { node(obj).quaternion = q; }
+int get_culling(void* obj, void*) { assert(obj == player_animation); return player_culling; }
+void set_culling(void* obj, int mode, void*) { assert(obj == player_animation); player_culling = mode; }
+void* clip_name(void* clip, void*) { return game::field<void*>(clip, 0x80); }
 void mock_active(void* obj, bool value, void*) {
     node(obj).enabled = value;
     if (obj == entity && !value) graph_ready = false; // OnDisable destroys it.
@@ -203,6 +227,10 @@ uintptr_t mock_address(uintptr_t rva) {
         ADDRESS(0x26d1390, clone_object); ADDRESS(0x2757e60, clone_object);
         ADDRESS(0x2048e80, nickname); ADDRESS(0x26ef430, concat_text);
         ADDRESS(0x210a7a0, text_width); ADDRESS(0x2afa20, write_barrier);
+        ADDRESS(0x2996af0, get_fly_root); ADDRESS(0x299e0b0, get_parent);
+        ADDRESS(0x2693870, euler); ADDRESS(0x299d840, set_quaternion);
+        ADDRESS(0x211e030, get_culling); ADDRESS(0x211e0c0, set_culling);
+        ADDRESS(0x2685f80, clip_name);
     }
 #undef ADDRESS
     std::cerr << "Unexpected RVA " << std::hex << rva << '\n';
@@ -224,11 +252,27 @@ bool mock_rock_climb_original(void*, void*) {
     RendererVisibility::Callback(renderer, rock_climb_visible && !rock_climb_complete, nullptr);
     return rock_climb_complete;
 }
+bool mock_fly_departure_original(void*, void*) {
+    ++fly_original_calls;
+    RendererVisibility::Callback(fly_renderer, true, nullptr);
+    return fly_complete;
+}
+bool mock_fly_arrival_original(void*, void*) {
+    ++fly_original_calls;
+    RendererVisibility::Callback(fly_renderer, !fly_complete, nullptr);
+    return fly_complete;
+}
 
 void reset() {
     assert(handles.empty());
     objects.clear(); party.clear();
     player = make(); renderer = make(); anchor = make(); bundle = make();
+    fly_renderer = make(); fly_spine = make(); fly_waist = make(); player_animation = make();
+    pointer(player, game::StaraptorRenderer, fly_renderer); pointer(player, 0xe0, player_animation);
+    node(fly_renderer).enabled = false;
+    fly_complete = missing_fly_anchor = false;
+    fly_original_calls = 0; played_animation = -1; player_culling = 1;
+    fly_sequence = fly_command = fly_fallback = false; fly_wait = fly_preview_time = 0;
     request = make(); item = make(); cache = make(); prefab = make(); catalog = make();
     pointer(player, game::BibarelRenderer, renderer);
     pointer(player, game::SurfTransform, anchor);
@@ -341,6 +385,13 @@ int main() {
     assert(!parse_text("enabled=0\nenabled=0\n"));
     assert(!parse_text("enabled=0\nmodel=../../main\n"));
     assert(!parse_text("enabled=0\nscale=0,1,1\n"));
+    assert(parse_text("# placement_scope=rock-climb\nenabled=1\nmodel=pm0075_00_00\noffset=0,1,-1\nrotation=35,0,0\nscale=0.8,0.8,0.8\n"));
+    debug_mount::state.config = parsed;
+    assert(parsed.move == 431 && !debug_mount::for_move(19).enabled && debug_mount::for_move(431).enabled);
+    assert(parse_text("# placement_scope=fly\nenabled=0\n") && parsed.move == 19);
+    assert(!parse_text("# placement_scope=invalid\nenabled=0\n"));
+    debug_mount::state.config.move = 57;
+    assert(debug_mount::for_move(127).enabled && !debug_mount::for_move(431).enabled);
 
     reset(); auto* chosen = pokemon(130, true); swimming = false; pending = false;
     start(); tick();
@@ -375,7 +426,7 @@ int main() {
     std::memcpy(static_cast<char*>(arguments)+0x2c, &work_index, sizeof(work_index));
     CutInCommand::Callback(manager, nullptr);
     assert(preview_member == chosen && !traversal_cut_in);
-    preview_member = nullptr; move = 70; // Strength's preview remains vanilla.
+    preview_member = nullptr; move = 999; // Unrelated cut-ins remain vanilla.
     type = 1;
     std::memcpy(static_cast<char*>(arguments)+0x28, &type, sizeof(type));
     std::memcpy(static_cast<char*>(arguments)+0x2c, &move, sizeof(move));
@@ -574,5 +625,176 @@ int main() {
     pointer(label, 0x18, make_text(u"97-msg_kairiki_04"));
     TraversalMessage::Callback(parser, label, 2, nullptr);
     assert(game::field<void*>(parser, 0x30) == label && handles.empty());
-    std::cout << "Surf/Waterfall/Rock Climb lifecycle: selection, loading, visibility, cancellation, fallback, teardown, live configuration, previews and dialogue passed\n";
+
+    struct MessageCase { int move; const char16_t* label; const char16_t* expected; };
+    const MessageCase messages[] = {
+        {15, u"97-msg_iai_02", u"Gyárados helped out by using Cut!"},
+        {249, u"97-msg_iwa_03", u"Gyárados helped out by using Rock Smash!"},
+        {70, u"97-msg_kairiki_02", u"Gyárados helped out by using Strength!"},
+        {70, u"97-msg_kairiki_05", u"Gyárados helped out by using Strength!"},
+        {432, u"97-msg_kiri_04", u"Gyárados helped out by using Defog!"},
+    };
+    for (const auto& test : messages) {
+        node(user).other_moves = {test.move};
+        pointer(label, 0x18, make_text(test.label));
+        TraversalMessage::Callback(parser, label, 2, nullptr);
+        copy = game::field<void*>(parser, 0x30);
+        copied_word = game::array_item(game::field<void*>(copy, 0x38), 0);
+        assert(copy != label && copied_word != word);
+        assert(text_value(game::field<void*>(copied_word, 0x20)) == test.expected);
+        assert(text_value(game::field<void*>(word, 0x20)) == u"A wild Bibarel helped out by using Waterfall!");
+        assert(handles.empty());
+        node(user).other_moves.clear();
+        TraversalMessage::Callback(parser, label, 2, nullptr);
+        assert(game::field<void*>(parser, 0x30) == label);
+    }
+    // Strength's combined message retains its follow-up rows and event data.
+    node(user).other_moves = {70};
+    pointer(label, 0x18, make_text(u"97-msg_kairiki_02"));
+    auto* followup = make(); auto* last_row = make();
+    pointer(followup, 0x20, make_text(u"Strength made it possible to move"));
+    pointer(last_row, 0x20, make_text(u"boulders around!"));
+    pointer(words, 0x28, followup); pointer(words, 0x30, last_row);
+    word_count = 3;
+    std::memcpy(static_cast<char*>(words)+0x18, &word_count, sizeof(word_count));
+    int event = 3;
+    std::memcpy(static_cast<char*>(word)+0x14, &event, sizeof(event));
+    TraversalMessage::Callback(parser, label, 2, nullptr);
+    copy = game::field<void*>(parser, 0x30);
+    auto* copied_rows = game::field<void*>(copy, 0x38);
+    copied_word = game::array_item(copied_rows, 0);
+    assert(game::array_length(copied_rows) == 3);
+    assert(text_value(game::field<void*>(copied_word, 0x20)) == u"Gyárados helped out by using Strength!");
+    assert(game::field<int>(copied_word, 0x14) == event);
+    assert(game::array_item(copied_rows, 1) == followup && game::array_item(copied_rows, 2) == last_row);
+    assert(game::array_item(words, 0) == word && handles.empty());
+    // Fixed debug models keep the game's dialogue, as for the water moves.
+    debug_mount::state.config.enabled = true;
+    std::strcpy(debug_mount::state.config.model, "pm0130_00_00");
+    TraversalMessage::Callback(parser, label, 2, nullptr);
+    assert(game::field<void*>(parser, 0x30) == label && handles.empty());
+
+    for (int move_id : {15, 19, 70, 249, 432}) {
+        reset(); swimming = false;
+        auto* egg_user = pokemon(399, false, true); node(egg_user).other_moves = {move_id};
+        pokemon(400, false); // A party member without the requested move.
+        auto* first = pokemon(130, false); node(first).other_moves = {move_id};
+        auto* second = pokemon(398, false); node(second).other_moves = {move_id};
+        auto* preview_manager = make(); auto* preview_arguments = make();
+        pointer(preview_manager, 0x4c0, preview_arguments);
+        size_t count = 2; int argument_type = 1; float requested_move = move_id;
+        std::memcpy(static_cast<char*>(preview_arguments)+0x18, &count, sizeof(count));
+        std::memcpy(static_cast<char*>(preview_arguments)+0x28, &argument_type, sizeof(argument_type));
+        std::memcpy(static_cast<char*>(preview_arguments)+0x2c, &requested_move, sizeof(requested_move));
+        CutInCommand::Callback(preview_manager, nullptr);
+        assert(preview_member == first && !traversal_cut_in);
+        if (move_id == 19) {
+            assert(traversal_move == 19 && session.phase == Phase::Loading && loads == 1);
+        } else assert(traversal_move == 57 && session.phase == Phase::Empty && loads == 0);
+        // Egg-only parties fall back to the original helper.
+        preview_member = nullptr; node(first).other_moves.clear(); node(second).other_moves.clear();
+        CutInCommand::Callback(preview_manager, nullptr);
+        assert(!preview_member && preview_species == 399);
+        if (move_id == 19) { finish_fly(); pending = false; tick(); }
+        assert(handles.empty());
+    }
+
+    reset(); swimming = false;
+    auto* flyer = pokemon(6, false); node(flyer).other_moves = {19};
+    debug_mount::state.config.enabled = true; debug_mount::state.config.move = 431;
+    std::strcpy(debug_mount::state.config.model, "pm0075_00_00");
+    auto* fly_manager = make();
+    prepare_fly(); // The slide-in preloads before the departure command.
+    assert(session.phase == Phase::Loading && session.member.get() == flyer && !session.debug.enabled);
+    assert(!session.boarding && player_culling == 0 && node(renderer).enabled);
+    assert(!FlyDeparture::Callback(fly_manager, nullptr) && fly_original_calls == 0);
+    pending = false;
+    assert(!FlyDeparture::Callback(fly_manager, nullptr));
+    assert(session.phase == Phase::Ready && parented_to == fly_waist);
+    assert(played_animation == 2 && node(model).enabled && !node(fly_renderer).enabled);
+    assert(std::abs(node(transform).quaternion.z - 0.70710678f) < 0.0001f);
+    assert(std::abs(node(transform).quaternion.w - 0.70710678f) < 0.0001f);
+    const auto flight_profile = placement_for(6, 19);
+    assert(node(transform).position.x == -flight_profile.offset.y);
+    assert(node(transform).position.y == flight_profile.offset.x);
+    auto* departure_model = model; auto* old_player = player; auto* old_waist = fly_waist;
+    fly_complete = true;
+    assert(FlyDeparture::Callback(fly_manager, nullptr));
+    assert(!node(departure_model).living && !node(fly_renderer).enabled);
+    assert(player_culling == 1 && handles.empty() && !fly_sequence && traversal_move == 57);
+    tick(); assert(loads == 1); // Landing on ordinary ground does not respawn a mount.
+
+    // Arrival binds to the destination player's rig, never the old transform.
+    player = make(); fly_renderer = make(); fly_spine = make(); fly_waist = make(); player_animation = make();
+    pointer(player, game::StaraptorRenderer, fly_renderer); pointer(player, 0xe0, player_animation);
+    node(old_player).living = false; node(fly_renderer).enabled = false;
+    fly_complete = false; pending = true;
+    fly_manager = make();
+    assert(!FlyArrival::Callback(fly_manager, nullptr));
+    assert(session.owner.get() == player && player_culling == 0);
+    pending = false;
+    assert(!FlyArrival::Callback(fly_manager, nullptr));
+    assert(parented_to == fly_waist && parented_to != old_waist && node(model).enabled);
+    fly_complete = true;
+    assert(FlyArrival::Callback(fly_manager, nullptr));
+    assert(player_culling == 1 && handles.empty() && !node(model).living);
+
+    for (int failure : {0, 1, 2, 3}) {
+        reset(); swimming = false; pending = false;
+        if (failure != 0) { auto* user = pokemon(398, false); node(user).other_moves = {19}; }
+        missing_prefab = failure == 1; missing_fly_anchor = failure == 2; missing_mesh = failure == 3;
+        fly_manager = make();
+        assert(!FlyDeparture::Callback(fly_manager, nullptr));
+        assert(node(fly_renderer).enabled && session.phase == Phase::Failed);
+        fly_complete = true;
+        assert(FlyDeparture::Callback(fly_manager, nullptr));
+        assert(handles.empty() && player_culling == 1);
+    }
+    // Slow requests fall back within a bounded wait and retire without popping
+    // a replacement into the animation or unloading a pending request early.
+    reset(); swimming = false;
+    flyer = pokemon(398, false); node(flyer).other_moves = {19}; fly_manager = make();
+    assert(!FlyDeparture::Callback(fly_manager, nullptr) && fly_original_calls == 0);
+    PlayerLate::Callback(player, 1.6f, nullptr);
+    assert(!FlyDeparture::Callback(fly_manager, nullptr));
+    assert(fly_fallback && node(fly_renderer).enabled && session.phase == Phase::Retiring);
+    assert(unloads == 0 && player_culling == 1);
+    pending = false; tick(); assert(instantiations == 0 && unloads == 1);
+    fly_complete = true; assert(FlyDeparture::Callback(fly_manager, nullptr));
+    assert(handles.empty());
+
+    reset(); swimming = false;
+    flyer = pokemon(398, false); node(flyer).other_moves = {19}; prepare_fly();
+    PlayerLate::Callback(player, 10.1f, nullptr); // Canceled after the preview.
+    assert(!fly_sequence && session.phase == Phase::Retiring && player_culling == 1);
+    pending = false; tick(); assert(handles.empty() && instantiations == 0);
+
+    reset(); swimming = false; pending = false;
+    flyer = pokemon(398, false); node(flyer).other_moves = {19}; fly_manager = make();
+    FlyDeparture::Callback(fly_manager, nullptr);
+    CharacterOff::Callback(player, nullptr); // Scene teardown before the command completes.
+    assert(handles.empty() && !fly_sequence && player_culling == 1 && !node(model).living);
+
+    reset(); flyer = pokemon(130, true); node(flyer).other_moves = {19};
+    start(); pending = false; tick(); auto* water_model = model;
+    prepare_fly(); poll();
+    assert(!node(water_model).living && parented_to == fly_waist && loads == 2);
+    // A form change during departure must not tear down the Fly replacement.
+    SwimState::Callback(player, false, nullptr);
+    assert(session.phase == Phase::Ready && traversal_move == 19);
+    select_traversal(57);
+    assert(player_culling == 1 && !fly_sequence && handles.empty());
+
+    // An unfinished Surf request retires before Fly starts loading. Completion
+    // of that request must not allow the departure animation to race ahead.
+    reset(); flyer = pokemon(130, true); node(flyer).other_moves = {19};
+    start(); assert(session.phase == Phase::Loading);
+    fly_manager = make(); FlyDeparture::Callback(fly_manager, nullptr);
+    assert(session.phase == Phase::Retiring && fly_original_calls == 0);
+    pending = false;
+    FlyDeparture::Callback(fly_manager, nullptr);
+    assert(session.phase == Phase::Ready && loads == 2 && parented_to == fly_waist);
+    fly_complete = true; assert(FlyDeparture::Callback(fly_manager, nullptr));
+    assert(handles.empty());
+    std::cout << "Hidden move previews/dialogue and Surf/Waterfall/Rock Climb/Fly lifecycle checks passed\n";
 }

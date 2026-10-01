@@ -8,6 +8,7 @@
 namespace game {
 using Object = void*;
 struct Vector3 { float x, y, z; };
+struct Quaternion { float x, y, z, w; };
 struct Handle { int32_t value; };
 
 template <typename R, typename... A>
@@ -59,6 +60,7 @@ inline void store_object(Object object, size_t offset, Object value) {
 }
 
 constexpr size_t BibarelRenderer = 0x1d8;
+constexpr size_t StaraptorRenderer = 0x1e0;
 constexpr size_t SurfTransform = 0x388;
 
 inline Object first_user(int move) {

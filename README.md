@@ -13,7 +13,7 @@ every game state. These mods are experimental; keep backups of your saves.
 | Directory | Project |
 | --- | --- |
 | [ultrawide/](ultrawide/README.md) | Existing 3440×1440 ultrawide UI mod and build tools |
-| [hidden-moves/](hidden-moves/README.md) | Party Pokémon replacements for Surf, Waterfall, and Rock Climb |
+| [hidden-moves/](hidden-moves/README.md) | Party Pokémon hidden-move previews and dialogue, plus Surf, Waterfall, Rock Climb, and Fly mounts |
 | `dumps/` | Shared private base/update NSPs and `prod.keys` |
 | `extracted/` | Shared untouched merged ExeFS and RomFS |
 

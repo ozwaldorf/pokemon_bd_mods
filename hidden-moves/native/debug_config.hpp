@@ -8,6 +8,7 @@
 namespace debug_mount {
 struct Config {
     bool enabled = false;
+    int move = 0; // Unscoped legacy files apply to every hidden move.
     char model[13] = "party";
     Placement placement{{0, 1, 0}, {0, 0, 0}, {1, 1, 1}};
 };
@@ -20,6 +21,12 @@ struct State {
     bool had_file = false, checked = false;
 };
 inline State state;
+
+inline Config for_move(int move) {
+    Config value = state.config;
+    if (value.move && value.move != move && !(value.move == 57 && move == 127)) value.enabled = false;
+    return value;
+}
 
 inline bool same_model(const Config& a, const Config& b) {
     const char* x = a.enabled ? a.model : "party";
@@ -60,6 +67,15 @@ inline bool parse(char* text, Config& output) {
     for (char* line = text; line && *line;) {
         char* next = std::strchr(line, '\n');
         if (next) *next++ = 0;
+        char* scope = trim(line);
+        constexpr char prefix[] = "# placement_scope=";
+        if (!std::strncmp(scope, prefix, sizeof(prefix) - 1)) {
+            scope = trim(scope + sizeof(prefix) - 1);
+            if (!std::strcmp(scope, "fly")) value.move = 19;
+            else if (!std::strcmp(scope, "rock-climb")) value.move = 431;
+            else if (!std::strcmp(scope, "surf")) value.move = 57;
+            else return false;
+        }
         if (char* comment = std::strchr(line, '#')) *comment = 0;
         line = trim(line);
         if (*line) {

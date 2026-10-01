@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Edit the live Surf debug configuration in Eden's emulated SD card."""
+"""Edit live hidden move models and placements in Eden's emulated SD card."""
 import argparse
 import json
 import math
@@ -11,6 +11,12 @@ import tempfile
 PROJECT = Path(__file__).resolve().parents[1]
 DEFAULT_FILE = Path.home() / '.local/share/eden/sdmc/hidden-moves-debug.cfg'
 PLACEMENT_KEYS = ('offset', 'rotation', 'scale')
+
+
+def placement_tables(move):
+    return {'surf': ('models', 'species', 'default'),
+            'rock-climb': ('rock_climb_models', 'rock_climb', 'default'),
+            'fly': ('fly_models', 'fly', 'fly_default')}[move]
 
 
 def profile(config):
@@ -34,8 +40,7 @@ def save_profile(placements, config, move='surf'):
     if model != 'party' and (not match or not 1 <= int(match[1]) <= 493):
         raise ValueError(f'Invalid model in debug file: {model}')
     saved = profile(config)
-    model_table = 'rock_climb_models' if move == 'rock-climb' else 'models'
-    species_table = 'rock_climb' if move == 'rock-climb' else 'species'
+    model_table, species_table, _ = placement_tables(move)
     placements.setdefault(model_table, {})[model] = saved
     # The native placement table currently selects by species. Preserve variant
     # tweaks separately; only the base model updates the compiled species table.
@@ -67,7 +72,7 @@ def main():
     parser.add_argument('--file', type=Path, default=DEFAULT_FILE)
     parser.add_argument('--placements', type=Path, default=PROJECT / 'placements.json',
                         help='Saved profiles (defaults to the project placement table)')
-    parser.add_argument('--move', choices=('surf', 'rock-climb'),
+    parser.add_argument('--move', choices=('surf', 'rock-climb', 'fly'),
                         help='Placement table to tune (otherwise retained from the debug file)')
     commands = parser.add_subparsers(dest='command', required=True)
     commands.add_parser('init')
@@ -91,8 +96,10 @@ def main():
     previous_move = 'surf'
     if args.file.exists():
         for line in args.file.read_text().splitlines():
-            if line.strip() == '# placement_scope=rock-climb':
-                previous_move = 'rock-climb'
+            if line.strip().startswith('# placement_scope='):
+                scope = line.strip().split('=', 1)[1]
+                if scope in ('surf', 'rock-climb', 'fly'):
+                    previous_move = scope
             line = line.split('#', 1)[0].strip()
             if '=' in line:
                 key, value = line.split('=', 1)
@@ -125,15 +132,14 @@ def main():
         # Load the saved profile for a new model or scope instead of carrying
         # the previous scope's live values into it.
         if model != previous['model'] or move != previous_move:
-            model_table = 'rock_climb_models' if move == 'rock-climb' else 'models'
-            species_table = 'rock_climb' if move == 'rock-climb' else 'species'
+            model_table, species_table, default_table = placement_tables(move)
             saved = placements.get(model_table, {}).get(model)
             if saved is None and model != 'party':
                 saved = placements.get(species_table, {}).get(str(int(model[2:6])))
-            if saved is None and model != 'party':
+            if saved is None and model != 'party' and move != 'fly':
                 saved = placements['species'].get(str(int(model[2:6])))
             if saved is None:
-                saved = placements['default']
+                saved = placements[default_table]
             for key in PLACEMENT_KEYS:
                 defaults[key] = ','.join(str(v) for v in saved[key])
         defaults['model'] = model

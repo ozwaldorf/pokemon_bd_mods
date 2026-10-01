@@ -9,19 +9,25 @@ For Pokémon Brilliant Diamond 1.3.0, tested locally in Eden.
 - Party appearance is preserved, including form, sex, and shiny state.
 - Summoning previews use the selected Pokémon. English success messages use
   its name or nickname.
+- **Cut, Rock Smash, Strength, and Defog:** party-based slide-in models and
+  English helper messages. Strength keeps its follow-up text.
+- **Fly:** replace Staraptor during takeoff and landing with the first non-egg
+  party Pokémon that knows Fly. The mount follows the original animated body
+  bone and uses its own battle idle animation when available.
 - Waterfall switches back to the Surf user after ascent. Rock Climb supports
   ascent and descent, then removes the mount on dismount.
-- Bibarel remains the fallback when no eligible Pokémon is available or a
-  replacement fails to load.
-- Saved position, rotation, and scale profiles. Rock Climb has its own table,
-  separate from Surf and Waterfall.
+- The original helper remains the fallback when no eligible Pokémon is
+  available or a replacement fails to load. Fly bounds its loading wait.
+- Saved position, rotation, and scale profiles. Rock Climb and Fly have their
+  own tables, separate from Surf and Waterfall.
 - Live model and placement overrides, with settings saved automatically.
 - Placement coverage for 127 Surf candidates and 93 Rock Climb candidates.
   Most Rock Climb placements are geometry estimates.
 
 ## Remaining
 
-- Fly, Cut, Rock Smash, Strength, and Defog replacements and previews.
+- Verify Fly takeoff and landing in Eden, then tune placements and animations
+  for individual Pokémon. Fly currently uses a shared initial placement.
 - Refine Rock Climb placements and check wall clearance in both directions.
 - Verify movement, full animation cycles, battles, area changes, and save reloads
   across the supported models. Surf checks so far mainly cover stationary fit.
@@ -76,6 +82,8 @@ Restart the game after installing.
 `just debug-hidden-moves set ...` creates the live debug configuration. The
 mod reads it at startup and at each traversal cut-in, and polls it while
 enabled. Changes made while disabled apply at the next cut-in.
+Use `just debug-hidden-moves --move fly set --model 398` to tune Fly. Overrides
+apply to their selected move; Surf settings also cover Waterfall.
 
 Use `just check` to syntax-check the Python scripts and `just test-hidden-moves` to run the
 native lifecycle checks with a mocked engine boundary.

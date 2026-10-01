@@ -1,4 +1,4 @@
-"""Keep live cliff tuning separate from saved water placements."""
+"""Keep water, cliff, and Fly placement tuning separate."""
 import contextlib
 import io
 import json
@@ -16,12 +16,14 @@ class PlacementScopeTests(unittest.TestCase):
     def test_switch_edit_and_restore_move_scope(self):
         water = {'offset': [0, 0.25, 0], 'rotation': [20, 0, 0], 'scale': [0.7] * 3}
         cliff = {'offset': [0, 1.2, -1.1], 'rotation': [20, 0, 0], 'scale': [0.7] * 3}
+        fly = {'offset': [0, -0.4, 0], 'rotation': [0, 0, 0], 'scale': [0.75] * 3}
         with tempfile.TemporaryDirectory() as directory:
             directory = Path(directory)
             config, placements = directory / 'debug.cfg', directory / 'placements.json'
             placements.write_text(json.dumps({'default': water, 'species': {'9': water},
                 'models': {'pm0009_00_00': water}, 'rock_climb': {'9': cliff},
-                'rock_climb_models': {'pm0009_00_00': cliff}}))
+                'rock_climb_models': {'pm0009_00_00': cliff}, 'fly_default': fly,
+                'fly': {}, 'fly_models': {}}))
             config.write_text('enabled=1\nmodel=pm0009_00_00\noffset=0,0.25,0\n'
                               'rotation=20,0,0\nscale=0.7,0.7,0.7\n')
 
@@ -50,6 +52,16 @@ class PlacementScopeTests(unittest.TestCase):
             saved = json.loads(placements.read_text())
             self.assertEqual(saved['rock_climb']['9']['offset'], [0, 1.45, -1.1])
             self.assertEqual(saved['species']['9'], water)
+
+            run('--move', 'fly', 'set')
+            self.assertIn('offset=0,-0.4,0', config.read_text())
+            run('set', '--offset', '0', '-0.6', '0.1')
+            run('off')
+            self.assertIn('# placement_scope=fly', config.read_text())
+            saved = json.loads(placements.read_text())
+            self.assertEqual(saved['fly']['9']['offset'], [0, -0.6, 0.1])
+            self.assertEqual(saved['species']['9'], water)
+            self.assertEqual(saved['rock_climb']['9']['offset'], [0, 1.45, -1.1])
 
 
 if __name__ == '__main__':

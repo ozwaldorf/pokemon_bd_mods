@@ -37,6 +37,8 @@ HOOKS = {
     "CutInLoad": 0x2CC74B0,
     "WaterfallCommand": 0x2C6CD40,
     "RockClimbCommand": 0x2C6B1F0,
+    "FlyDeparture": 0x2C6D120,
+    "FlyArrival": 0x2C6D380,
     "TraversalMessage": 0x1F96E90,
 }
 
@@ -124,6 +126,12 @@ def placements(source: Path, target: Path) -> None:
     lines = ["#pragma once", "#include \"game.hpp\"",
              "struct Placement { game::Vector3 offset, rotation, scale; };",
              "inline Placement placement_for(int species, int move = 57) {"]
+    lines.extend(["    if (move == 19) {", "        switch (species) {"])
+    for species, profile in data.get('fly', {}).items():
+        if not species.isdigit() or not 1 <= int(species) <= 493:
+            raise ValueError(f"Invalid Fly species: {species}")
+        lines.append(f"        case {int(species)}: return {literal(profile)};")
+    lines.extend([f"        default: return {literal(data['fly_default'])};", "        }", "    }"])
     if data.get('rock_climb'):
         lines.extend(["    if (move == 431) {", "        switch (species) {"])
         for species, profile in data['rock_climb'].items():
