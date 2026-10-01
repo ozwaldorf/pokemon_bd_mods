@@ -31,6 +31,7 @@ verified revision. Attribution is included in the generated mod.
 - Pokédex previews, Motion/Cry, and Habitat layouts use the wider viewport.
 - Capsule selection, previews, and sticker placement are aligned in 2D and 3D.
 - Encounter transitions and Hidden Move backdrops cover the full width.
+- Evolution, egg hatching, trading, and shared demos render at 3440×1440, with full-width evolution flashes and demo fades.
 
 ## Development
 

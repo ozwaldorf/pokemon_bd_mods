@@ -838,6 +838,30 @@ def patch_encounter_effect(source: Path, destination: Path) -> list[dict]:
     return changes
 
 
+def patch_demo_overlay(source: Path, destination: Path, overlay_name: str) -> list[dict]:
+    """Make the demo fade/flash cover the canvas, including during animation."""
+    env = UnityPy.load(str(source))
+    changes = []
+    for obj in env.objects:
+        if obj.type.name != "RectTransform":
+            continue
+        rect = obj.read()
+        if rect.m_GameObject.read().m_Name != overlay_name:
+            continue
+        if not is_reference_frame(rect):
+            raise ValueError(f"Unexpected demo overlay dimensions: {source}/{overlay_name}")
+        path, _ = build_hierarchy(rect)
+        stretch(rect)
+        rect.save()
+        changes.append({"bundle": str(source), "path": path,
+                        "path_id": obj.path_id, "action": "stretch_demo_overlay"})
+    if len(changes) != 1:
+        raise ValueError(f"Expected one {overlay_name} demo overlay in {source}")
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    destination.write_bytes(env.file.save(packer="original"))
+    return changes
+
+
 def write_exefs_patch(source: Path, destination: Path) -> None:
     text = source.read_text(encoding="utf-8")
     marker = "@stop"
@@ -879,7 +903,16 @@ def write_exefs_patch(source: Path, destination: Path) -> None:
         if old not in text:
             raise ValueError(f"Missing expected Poketch patch: {old}")
         text = re.sub(re.escape(old) + r"[^\n]*", new + " // resized Poketch screen-space extent", text, count=1)
-    additions = """// Bag.OpOpen supplies its own shared-message-window anchor (260, 110).
+    additions = """// DemoCamera.CreateRenderTex hardcodes 1280x720 for evolution and other
+// shared demos. Render at the full output size; the camera's target texture
+// supplies the wider aspect while preserving vertical framing.
+01AC8A4C 01AE8152 // mov w1,#3440 (render texture width)
+01AC8A50 02B48052 // mov w2,#1440 (render texture height)
+// DemoSceneManager.CommonInit creates a centered RawImage at 1280x720.
+// CanvasScaler already matches height through the upstream patch, so use
+// 1720x720 logical units to display 3440x1440 without stretching the Pokemon.
+01ACA350 E89AA852 // mov w8,#0x44D70000 (1720.0f display width)
+// Bag.OpOpen supplies its own shared-message-window anchor (260, 110).
 // Shift the complete Bag dialog left by half the added canvas width; keep
 // its vertical anchor and all other screens' message windows unchanged.
 01BE2DC0 0844A852 // mov w8,#0x42200000; Bag dialog X = 40 instead of 260
@@ -1031,6 +1064,18 @@ def build(romfs: Path, pchtxt: Path, output: Path) -> dict:
         if changes:
             relative = source.relative_to(romfs)
             bundle_counts[str(relative)] = len(changes)
+
+    # Demo assets live outside UIs. The shared transition fade and evolution's
+    # white flash are fixed 1280x720 overlays and must cover the whole canvas.
+    demo_root = Path("Data/StreamingAssets/AssetAssistant/FureaiHiroba/demo")
+    for relative, overlay_name in (
+        (demo_root / "demosceneprefab", "Fade"),
+        (demo_root / "timeline/evolve", "Image"),
+    ):
+        changes = patch_demo_overlay(romfs / relative, output / "romfs" / relative,
+                                     overlay_name)
+        all_changes.extend(changes)
+        bundle_counts[str(relative)] = len(changes)
 
     exefs = output / "exefs"
     write_exefs_patch(pchtxt, exefs / pchtxt.name)
