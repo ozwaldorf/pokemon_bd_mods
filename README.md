@@ -14,6 +14,7 @@ every game state. These mods are experimental; keep backups of your saves.
 | --- | --- |
 | [ultrawide/](ultrawide/README.md) | True Ultrawide UI 3440x1440 21:9 mod and build tools |
 | [hidden-moves/](hidden-moves/README.md) | Party Pokémon hidden-move previews and dialogue, plus Surf, Waterfall, Rock Climb, and Fly mounts |
+| [skip-intro/](skip-intro/README.md) | Skip the startup intro movie and title screen, then load automatically |
 | `dumps/` | Shared private base/update NSPs and `prod.keys` |
 | `extracted/` | Shared untouched merged ExeFS and RomFS |
 
@@ -26,7 +27,7 @@ every game state. These mods are experimental; keep backups of your saves.
 - Your own `prod.keys` that can decrypt both NSPs.
 - Disk space for the dumps, intermediate extraction, and merged game files.
 
-Both projects target title `0100000011D90000`, version `1.3.0`, build `94CEAE325C205C4B9D6F7235552F28FD`.
+All projects target title `0100000011D90000`, version `1.3.0`, build `94CEAE325C205C4B9D6F7235552F28FD`.
 
 ### Install the dumps and keys
 
@@ -53,7 +54,7 @@ just extract
 ```
 
 The shared [extraction script](scripts/extract_game.py) merges the base game and
-update into the directories expected by both projects:
+update into the directories expected by the projects:
 
 ```text
 extracted/
@@ -70,6 +71,7 @@ Stay in the development shell at the repository root and choose one project:
 ```sh
 just build-ultrawide
 just build-hidden-moves
+just build-skip-intro
 ```
 
 All commands run from the repository root; `just --list` shows them all.
@@ -77,9 +79,10 @@ Generated mods are written to `dist/`, one directory per mod named as Eden
 expects, so each can be copied directly into the load directory.
 See the [ultrawide instructions](ultrawide/README.md#development) or
 [hidden-moves instructions](hidden-moves/README.md#development) for checks,
-installation, and in-game testing.
+installation, and in-game testing. The [startup skip instructions](skip-intro/README.md)
+cover its build, installation, and validation.
 
-`just install-ultrawide` and `just install-hidden-moves` install into local Eden at
+`just install-ultrawide`, `just install-hidden-moves`, and `just install-skip-intro` install into local Eden at
 `~/.local/share/eden/load/0100000011D90000/`.
 
 Private game files, keys, virtual environments, and generated output are

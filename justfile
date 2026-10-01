@@ -2,6 +2,7 @@ set shell := ["bash", "-euo", "pipefail", "-c"]
 
 dist_ultrawide := "dist/True Ultrawide UI 3440x1440 21:9"
 dist_hidden_moves := "dist/Party Hidden Moves v1.3.0"
+dist_skip_intro := "dist/Skip Intro and Title v1.3.0"
 device_load := "/sdcard/Android/data/dev.eden.eden_emulator.nightly/files/load/0100000011D90000"
 
 # Set up the shared Python environment.
@@ -56,6 +57,24 @@ install-hidden-moves:
 # List models or update the live hidden moves debug configuration without rebuilding.
 debug-hidden-moves *args:
     uv run python hidden-moves/scripts/debug_mount.py {{args}}
+
+# Build the intro movie and title-screen skip patch.
+build-skip-intro:
+    uv run python skip-intro/scripts/build_mod.py
+
+# Check startup patch encoding and packaging without game dumps.
+test-skip-intro:
+    uv run python -m unittest discover -s skip-intro/tests -p 'test_*.py'
+
+# Install the startup skip mod into local Eden.
+install-skip-intro:
+    uv run python scripts/install_mod.py --source "{{dist_skip_intro}}"
+
+# Copy the startup skip mod to the connected Android device.
+push-skip-intro:
+    adb shell 'rm -rf "{{device_load}}/{{file_name(dist_skip_intro)}}"'
+    adb shell 'mkdir -p "{{device_load}}"'
+    adb push "{{dist_skip_intro}}" "{{device_load}}/"
 
 # Take a temporary screenshot from the connected Android device.
 capture:
