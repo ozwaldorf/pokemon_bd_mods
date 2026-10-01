@@ -44,12 +44,14 @@ dumps/
 ### Create the shared extraction
 
 The root `flake.nix` and `flake.lock` provide the shared development tools,
-including the pinned devkitA64 compiler, libnx, and Switch packaging tools.
+including the pinned devkitA64 compiler, libnx, Switch packaging tools, and
+Python 3.12 with all dependencies from `uv.lock`. Entering the shell provides
+the Python environment automatically; no virtualenv setup is needed.
+`just setup` can verify the Python imports.
 From the repository root, run:
 
 ```sh
 nix develop
-just setup
 just extract
 ```
 

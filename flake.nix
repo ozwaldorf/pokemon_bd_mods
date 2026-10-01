@@ -15,6 +15,46 @@
     let
       system = "x86_64-linux";
       pkgs = import nixpkgs { inherit system; };
+      pythonEnv =
+        let
+          python = pkgs.python312;
+          # Keep the existing lock as the source of truth for all Python versions and
+          # download hashes. The development shell targets x86_64 Linux / Python 3.12.
+          lock = builtins.fromTOML (builtins.readFile ./uv.lock);
+          lockedPackages = builtins.filter (p: p.source ? registry) lock.package;
+          compatibleWheel = wheel:
+            let url = wheel.url; in
+            pkgs.lib.hasSuffix "-py3-none-any.whl" url
+            || (pkgs.lib.hasInfix "manylinux" url
+              && pkgs.lib.hasInfix "x86_64" url
+              && (pkgs.lib.hasInfix "-cp312-cp312-" url
+                || pkgs.lib.hasInfix "-cp37-abi3-" url
+                || pkgs.lib.hasInfix "-cp311-abi3-" url));
+          packages = builtins.listToAttrs (map (package:
+            let
+              wheels = builtins.filter compatibleWheel (package.wheels or [ ]);
+              useWheel = wheels != [ ];
+              archive = if useWheel then builtins.head wheels else package.sdist;
+            in {
+              name = package.name;
+              value = python.pkgs.buildPythonPackage {
+                pname = package.name;
+                inherit (package) version;
+                format = if useWheel then "wheel" else "pyproject";
+                src = pkgs.fetchurl {
+                  inherit (archive) url;
+                  sha256 = pkgs.lib.removePrefix "sha256:" archive.hash;
+                };
+                nativeBuildInputs = pkgs.lib.optional useWheel pkgs.autoPatchelfHook;
+                buildInputs = [ pkgs.stdenv.cc.cc.lib pkgs.zlib ];
+                build-system = pkgs.lib.optionals (!useWheel) [ python.pkgs.setuptools ];
+                dependencies = map (dependency: packages.${dependency.name})
+                  (package.dependencies or [ ]);
+                doCheck = false;
+              };
+            }) lockedPackages);
+          project = builtins.head (builtins.filter (p: p.source ? virtual) lock.package);
+        in python.withPackages (_: map (dependency: packages.${dependency.name}) project.dependencies);
       devkitpro =
         let
           # Official devkitPro packages, matching the previously used build toolchain.
@@ -100,6 +140,7 @@
     in {
       packages.${system} = {
         inherit devkitpro hactoolnet il2cppdumper;
+        python-env = pythonEnv;
       };
 
       devShells.${system}.default = pkgs.mkShell {
@@ -115,13 +156,16 @@
           pkgs.gcc
           pkgs.git
           devkitpro
-          pkgs.python312
-          pkgs.uv
+          pythonEnv
           pkgs.pkgsCross.aarch64-multiplatform.buildPackages.binutils
         ];
 
         LD_LIBRARY_PATH = pkgs.lib.makeLibraryPath [ pkgs.stdenv.cc.cc.lib ];
-        UV_PYTHON = "${pkgs.python312}/bin/python3.12";
+        # Other tools bring their own Python interpreters. Prefer the project
+        # environment for both interactive commands and the just recipes.
+        shellHook = ''
+          export PATH="${pythonEnv}/bin:$PATH"
+        '';
         DEVKITPRO = "${devkitpro}";
         DEVKITA64 = "${devkitpro}/devkitA64";
       };

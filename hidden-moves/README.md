@@ -53,7 +53,6 @@ extraction:
 
 ```sh
 nix develop
-just setup
 just extract
 ```
 
