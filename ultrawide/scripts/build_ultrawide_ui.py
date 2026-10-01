@@ -201,6 +201,9 @@ ANCHORED_POSITION_X_OFFSETS = {
 # their authored positions on every transition, so every curve representation
 # must be offset along with its serialized rest pose.
 ANIMATION_X_OFFSETS_BY_PATH_HASH = {
+    # GoToBox is right-anchored by the layout patch. Its party-screen clips
+    # still use center-relative X values, which otherwise hide the hint.
+    2215735440: (-640.0, ("Pokemon__",)),  # GoToBox
     # Convert the capsule selector's center-anchored entrance positions to
     # the same right-anchored frame as its serialized rect.
     2592220292: (-640.0, ("Seal__",)),  # Scene_CupsuleList/CupsuleList
