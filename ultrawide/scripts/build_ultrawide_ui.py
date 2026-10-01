@@ -14,6 +14,7 @@ import re
 import struct
 import sys
 from collections import defaultdict
+from dataclasses import dataclass, field
 from pathlib import Path
 
 import UnityPy
@@ -25,12 +26,10 @@ from staging import staged_directory
 REFERENCE_WIDTH = 1280.0
 REFERENCE_HEIGHT = 720.0
 HALF_REFERENCE_WIDTH = REFERENCE_WIDTH / 2.0
-ULTRAWIDE_WIDTH = 1720.0
-ULTRAWIDE_X_SCALE = ULTRAWIDE_WIDTH / REFERENCE_WIDTH
-# The top/under encounter textures contain about 16.2% horizontal visual
-# padding. A pure aspect-ratio scale leaves their visible streaks and rock
-# silhouettes inset by roughly 166 display pixels on each side at 21:9.
-ENCOUNTER_BAND_WIDTH = 5.775
+# Every target renders 1440 pixels high. The patched CanvasScaler matches
+# height, so all height-derived 2x factors are shared between targets.
+OUTPUT_HEIGHT = 1440
+CANVAS_SCALE = OUTPUT_HEIGHT / REFERENCE_HEIGHT
 ENCOUNTER_BAND_NAMES = {"top_high", "top_low", "under_high", "under_low"}
 
 # Keep the authored list camera: its reversed horizontal viewing direction
@@ -109,14 +108,6 @@ LOCAL_SCALE_POLICIES = {
     "MapWall/Window/FacilityInfo": (720.0 / 630.0, 720.0 / 630.0),
 }
 
-# Nested canvases with RectMask2D do not reliably refresh a stretch-anchored
-# rect after the top-level window is widened. Give those clipping frames an
-# explicit ultrawide size so their children cannot be cut off at 1280 units.
-FIXED_RECT_SIZE_OVERRIDES = {
-    "Seal/Window/BGRoot": (ULTRAWIDE_WIDTH, REFERENCE_HEIGHT),
-    "Seal/Window/BGRoot/BG/Image": (ULTRAWIDE_WIDTH, REFERENCE_HEIGHT),
-}
-
 # Non-UI scene anchors which host runtime-instantiated models.
 LOCAL_POSITION_X_OVERRIDES = {
     # The player model is parented here after loading. Move only that model;
@@ -137,129 +128,7 @@ ANCHORED_POSITION_OVERRIDES = {
     "LevelUp/Window/Content": (30.0, -82.0),
 }
 
-# Move all trainer-intro artwork together inside the runtime-animated plate.
-# Keep the plate's authored rect and tween endpoints: shifting its two visual
-# children moves the complete arrow and all balls without resizing the line.
-BATTLE_INTRO_BALL_X_OFFSETS = {
-    "BattleViewUISystem/BallPlate/BUIBallPlate_Near/Image_Arrow": 220.0,
-    "BattleViewUISystem/BallPlate/BUIBallPlate_Near/BallIcons": 220.0,
-    "BattleViewUISystem/BallPlate/BUIBallPlate_Far/Image_Arrow": -220.0,
-    "BattleViewUISystem/BallPlate/BUIBallPlate_Far/BallIcons": -220.0,
-}
-
-ANCHORED_POSITION_X_OFFSETS = {
-    **BATTLE_INTRO_BALL_X_OFFSETS,
-    # PokeParty retains its animated 1280-wide coordinate frame. Its cards
-    # start at physical X=220+29. Move the static content and backing group
-    # together to retain the authored 29-unit inset from the left edge.
-    "Bag/Window/PokeParty/Content": -220.0,
-    "Bag/Window/PokeParty/Base": -220.0,
-    "Pokemon/Window/PokeParty/Content": -220.0,
-    "Pokemon/Window/PokeParty/Base": -220.0,
-    # UISeal resets the tray parent's position when entering edit mode.
-    # Its nested canvas retains the 1280-unit center, so move all artwork
-    # within that runtime-controlled parent by the missing half-width.
-    **{
-        f"Seal/Window/BGRoot/BG/CupsuleBase/{child}": 220.0
-        for child in (
-            "Image_line", "Image_base_center", "Image_base_left", "Image_base_right",
-            "Image_arrow_00_eff", "Image_arrow_01", "Image_arrow_02",
-            "Image_arrow_03", "Image_arrow_04",
-        )
-    },
-    # Center the unknown-habitat banner in the space beside the left panel.
-    "ZukanHabitat/Window/Map/Body/HabitatMap/NotFound": -6.0,
-    # This top-right-pivoted window is positioned by its entrance/exit clips.
-    # Preserve that fixed coordinate frame and move its pivot to the new
-    # canvas right edge; stretching it makes the clips push it off-screen.
-    "Poketch/Window": (ULTRAWIDE_WIDTH - REFERENCE_WIDTH) / 2.0,
-    # This widened image is centered by a nested 1280-wide canvas. Shift it by
-    # half the added canvas width so it covers physical X=0..1720 instead of
-    # extending from X=-220..1500.
-    "Seal/Window/BGRoot/BG/Image": 220.0,
-    # Keep the complete Pokédex preview and footprint with their widened
-    # left/right page groups.
-    "Zukan/Window/ZukanDescriptionPanel/ModelViewParent": 220.0,
-    "ZukanRegister/Window/ZukanDescriptionPanel/ModelViewParent": 220.0,
-    "Zukan/Window/ZukanDescriptionPanel/FootPrint": 220.0,
-    "ZukanRegister/Window/ZukanDescriptionPanel/FootPrint": 220.0,
-    # Match the final positions written by the corrected map animations.
-    "Map/Window/FacilityInfo": -220.0,
-    "MapWall/Window/FacilityInfo": -220.0,
-    # Grow the ocean backing leftward without moving interactive map content.
-    "Map/Window/Map/Object_Map/Body/Image_Base": -109.0,
-    # This icon is left-anchored while its containing Bag panel is aligned to
-    # the widened right edge. Follow the full 1720-1280 canvas expansion.
-    "Bag/Window/BagItemPanel/BagIconImage": 440.0,
-    # Keep the battle party details panel's 16:9 placement relative to the
-    # physical right edge.  Its BattlePokemon animation curves receive the
-    # same offset below so transitions cannot restore the centered position.
-    "PokemonBattle/Window/StatusWindow": 220.0,
-}
-
-# Unity animation binding paths use CRC32. These elements are animated back to
-# their authored positions on every transition, so every curve representation
-# must be offset along with its serialized rest pose.
-ANIMATION_X_OFFSETS_BY_PATH_HASH = {
-    # GoToBox is right-anchored by the layout patch. Its party-screen clips
-    # still use center-relative X values, which otherwise hide the hint.
-    2215735440: (-640.0, ("Pokemon__",)),  # GoToBox
-    # Convert the capsule selector's center-anchored entrance positions to
-    # the same right-anchored frame as its serialized rect.
-    2592220292: (-640.0, ("Seal__",)),  # Scene_CupsuleList/CupsuleList
-    # (offset, clip-name prefixes). The hashes are reused by unrelated clips,
-    # so the resident bundle, component type, and clip names are constrained.
-    1210394069: (-220.0, ("Map__", "MapWall__")),  # FacilityInfo
-    159791602: (440.0, ("Bag__",)),  # BagItemPanel/BagIconImage
-    3910900351: (220.0, ("BattlePokemon__",)),  # StatusWindow
-}
-
-SIZE_X_OVERRIDES = {
-    "Poketch/Window": ULTRAWIDE_WIDTH,
-    # The description's brown panel grows with the status-page background.
-    # Expand its striped paper and sliced frame together around the existing
-    # preview center. The 42-unit sliced frame then spans 1068 units, matching
-    # the left panel. Widen the RawImage too: PokemonModelView uses its rect
-    # to set RenderTexture dimensions and camera aspect. Keeping its height
-    # preserves the Pokemon's proportions and vertical framing while revealing
-    # the paper across the entire wider output instead of clipping it square.
-    **{
-        f"{window}/Window/ZukanDescriptionPanel/ModelViewParent/ModelView{child}": 1026.0
-        for window in ("Zukan", "ZukanRegister")
-        for child in ("", "/Offset", "/Offset/BG", "/RawImageParent/RawImage")
-    },
-    # Extend only the ocean backing; keep map tiles and habitat coordinates
-    # at their authored scale inside the wider clipping frame.
-    "ZukanHabitat/Window/Map/Body/HabitatMap/Body/Image_Base": 1940.0,
-    "ZukanHabitat/Window/Map/Body/HabitatMap/NotFound": ULTRAWIDE_WIDTH - 396.0,
-    # Battle code animates these parents to anchored X=0 at runtime. Keep
-    # their centered anchors and widen the coordinate frames so right-anchored
-    # command controls land on the physical screen edge.
-    "BattleViewUISystem/BUIActionList": ULTRAWIDE_WIDTH,
-    "BattleViewUISystem/BUIWazaList": ULTRAWIDE_WIDTH,
-    # The Pokédex details body is a centered 1280-wide coordinate group.  Its
-    # right-anchored fields otherwise lag 220 units behind the widened header.
-    "Zukan/Window/ZukanDescriptionPanel/FixedObjects/StatusPanel": 1720.0,
-    "ZukanRegister/Window/ZukanDescriptionPanel/FixedObjects/StatusPanel": 1720.0,
-    # Match the party screen's backing width, leaving the same margin beyond
-    # the cards while keeping their authored left inset.
-    "Bag/Window/Image_PartyPlate": 532.0,
-    # Battle party details still need the widened backing panel.
-    "PokemonBattle/Window/BG/Image_plate": 701.0,
-    # Its original right edge is already at X=1718 on the ultrawide canvas.
-    "Map/Window/Map/Object_Map/Body/Image_Base": 1718.0,
-}
-
 CAMERA_LENS_SHIFT_X = {}
-
-# The Pokédex header art stretches with the ultrawide window.  Its centered
-# labels must follow the same horizontal ratio to stay on the printed pills.
-POSITION_X_MULTIPLIERS = {
-    "Zukan/Window/Header/Image_Title": 1720.0 / REFERENCE_WIDTH,
-    "Zukan/Window/Header/GetPokeCountText": 1720.0 / REFERENCE_WIDTH,
-    "Zukan/Window/Header/FoundPokeCountText": 1720.0 / REFERENCE_WIDTH,
-    "Zukan/Window/Header/SortNameText": 1720.0 / REFERENCE_WIDTH,
-}
 
 # resources.assets contains the global UI manager rather than a window bundle.
 # This RawImage is the captured/blurred field scene shown behind the X menu.
@@ -302,6 +171,201 @@ EDGE_POLICIES = {
     "MapWall/Window/Navi": "left",
     "MapWall/Window/Info": "right",
 }
+
+
+@dataclass(frozen=True)
+class Target:
+    ratio: str
+    width: int
+
+    @property
+    def name(self) -> str:
+        return f"True Ultrawide UI {self.width}x{OUTPUT_HEIGHT} {self.ratio}"
+
+
+TARGETS = {
+    target.ratio: target
+    for target in (Target("21:9", 3440), Target("20.1:9", 3216))
+}
+
+
+@dataclass
+class Layout:
+    """Width-dependent UI policies for one target, in 720-unit canvas space."""
+
+    target: Target
+    width: float = field(init=False)
+    x_scale: float = field(init=False)
+    # Half of the canvas width added beyond 1280 units.
+    half_extra: float = field(init=False)
+    encounter_band_width: float = field(init=False)
+    fixed_rect_size_overrides: dict = field(init=False)
+    battle_intro_ball_x_offsets: dict = field(init=False)
+    anchored_position_x_offsets: dict = field(init=False)
+    animation_x_offsets_by_path_hash: dict = field(init=False)
+    size_x_overrides: dict = field(init=False)
+    position_x_multipliers: dict = field(init=False)
+
+    def __post_init__(self) -> None:
+        width = self.width = self.target.width / CANVAS_SCALE
+        self.x_scale = width / REFERENCE_WIDTH
+        half = self.half_extra = (width - REFERENCE_WIDTH) / 2.0
+        extra = 2.0 * half
+        # The top/under encounter textures contain about 16.2% horizontal
+        # visual padding. A pure aspect-ratio scale leaves their visible
+        # streaks and rock silhouettes inset by roughly 166 display pixels on
+        # each side at 21:9, where 5.775 was tuned; follow the canvas width.
+        self.encounter_band_width = 5.775 * width / 1720.0
+
+        # Nested canvases with RectMask2D do not reliably refresh a
+        # stretch-anchored rect after the top-level window is widened. Give
+        # those clipping frames an explicit size so their children cannot be
+        # cut off at 1280 units.
+        self.fixed_rect_size_overrides = {
+            "Seal/Window/BGRoot": (width, REFERENCE_HEIGHT),
+            "Seal/Window/BGRoot/BG/Image": (width, REFERENCE_HEIGHT),
+        }
+
+        # Move all trainer-intro artwork together inside the runtime-animated
+        # plate. Keep the plate's authored rect and tween endpoints: shifting
+        # its two visual children moves the complete arrow and all balls
+        # without resizing the line.
+        self.battle_intro_ball_x_offsets = {
+            "BattleViewUISystem/BallPlate/BUIBallPlate_Near/Image_Arrow": half,
+            "BattleViewUISystem/BallPlate/BUIBallPlate_Near/BallIcons": half,
+            "BattleViewUISystem/BallPlate/BUIBallPlate_Far/Image_Arrow": -half,
+            "BattleViewUISystem/BallPlate/BUIBallPlate_Far/BallIcons": -half,
+        }
+
+        self.anchored_position_x_offsets = {
+            **self.battle_intro_ball_x_offsets,
+            # PokeParty retains its animated 1280-wide coordinate frame. Its
+            # cards start at physical X=half+29. Move the static content and
+            # backing group together to retain the authored 29-unit inset.
+            "Bag/Window/PokeParty/Content": -half,
+            "Bag/Window/PokeParty/Base": -half,
+            "Pokemon/Window/PokeParty/Content": -half,
+            "Pokemon/Window/PokeParty/Base": -half,
+            # UISeal resets the tray parent's position when entering edit mode.
+            # Its nested canvas retains the 1280-unit center, so move all
+            # artwork within that runtime-controlled parent by the missing
+            # half-width.
+            **{
+                f"Seal/Window/BGRoot/BG/CupsuleBase/{child}": half
+                for child in (
+                    "Image_line", "Image_base_center", "Image_base_left", "Image_base_right",
+                    "Image_arrow_00_eff", "Image_arrow_01", "Image_arrow_02",
+                    "Image_arrow_03", "Image_arrow_04",
+                )
+            },
+            # Center the unknown-habitat banner in the space beside the left
+            # panel.
+            "ZukanHabitat/Window/Map/Body/HabitatMap/NotFound": -6.0,
+            # This top-right-pivoted window is positioned by its entrance/exit
+            # clips. Preserve that fixed coordinate frame and move its pivot to
+            # the new canvas right edge; stretching it makes the clips push it
+            # off-screen.
+            "Poketch/Window": half,
+            # This widened image is centered by a nested 1280-wide canvas.
+            # Shift it by half the added canvas width so it covers physical
+            # X=0..width instead of extending from X=-half.
+            "Seal/Window/BGRoot/BG/Image": half,
+            # Keep the complete Pokédex preview and footprint with their
+            # widened left/right page groups.
+            "Zukan/Window/ZukanDescriptionPanel/ModelViewParent": half,
+            "ZukanRegister/Window/ZukanDescriptionPanel/ModelViewParent": half,
+            "Zukan/Window/ZukanDescriptionPanel/FootPrint": half,
+            "ZukanRegister/Window/ZukanDescriptionPanel/FootPrint": half,
+            # Match the final positions written by the corrected map
+            # animations.
+            "Map/Window/FacilityInfo": -half,
+            "MapWall/Window/FacilityInfo": -half,
+            # Grow the ocean backing leftward without moving interactive map
+            # content.
+            "Map/Window/Map/Object_Map/Body/Image_Base": -(half - 2.0) / 2.0,
+            # This icon is left-anchored while its containing Bag panel is
+            # aligned to the widened right edge. Follow the full canvas
+            # expansion.
+            "Bag/Window/BagItemPanel/BagIconImage": extra,
+            # Keep the battle party details panel's 16:9 placement relative to
+            # the physical right edge. Its BattlePokemon animation curves
+            # receive the same offset so transitions cannot restore the
+            # centered position.
+            "PokemonBattle/Window/StatusWindow": half,
+        }
+
+        # Unity animation binding paths use CRC32. These elements are animated
+        # back to their authored positions on every transition, so every curve
+        # representation must be offset along with its serialized rest pose.
+        # Values are (offset, clip-name prefixes). The hashes are reused by
+        # unrelated clips, so the resident bundle, component type, and clip
+        # names are constrained.
+        self.animation_x_offsets_by_path_hash = {
+            # GoToBox is right-anchored by the layout patch. Its party-screen
+            # clips still use center-relative X values, which otherwise hide
+            # the hint.
+            2215735440: (-HALF_REFERENCE_WIDTH, ("Pokemon__",)),  # GoToBox
+            # Convert the capsule selector's center-anchored entrance positions
+            # to the same right-anchored frame as its serialized rect.
+            2592220292: (-HALF_REFERENCE_WIDTH, ("Seal__",)),  # Scene_CupsuleList/CupsuleList
+            1210394069: (-half, ("Map__", "MapWall__")),  # FacilityInfo
+            159791602: (extra, ("Bag__",)),  # BagItemPanel/BagIconImage
+            3910900351: (half, ("BattlePokemon__",)),  # StatusWindow
+        }
+
+        self.size_x_overrides = {
+            "Poketch/Window": width,
+            # The description's brown panel grows with the status-page
+            # background. Expand its striped paper and sliced frame together
+            # around the existing preview center so the 42-unit sliced frame
+            # matches the left panel. Widen the RawImage too:
+            # PokemonModelView uses its rect to set RenderTexture dimensions
+            # and camera aspect. Keeping its height preserves the Pokemon's
+            # proportions and vertical framing while revealing the paper
+            # across the entire wider output instead of clipping it square.
+            **{
+                f"{window}/Window/ZukanDescriptionPanel/ModelViewParent/ModelView{child}": (
+                    590.0 + extra - 4.0
+                )
+                for window in ("Zukan", "ZukanRegister")
+                for child in ("", "/Offset", "/Offset/BG", "/RawImageParent/RawImage")
+            },
+            # Extend only the ocean backing; keep map tiles and habitat
+            # coordinates at their authored scale inside the wider clipping
+            # frame.
+            "ZukanHabitat/Window/Map/Body/HabitatMap/Body/Image_Base": 1500.0 + extra,
+            "ZukanHabitat/Window/Map/Body/HabitatMap/NotFound": width - 396.0,
+            # Battle code animates these parents to anchored X=0 at runtime.
+            # Keep their centered anchors and widen the coordinate frames so
+            # right-anchored command controls land on the physical screen edge.
+            "BattleViewUISystem/BUIActionList": width,
+            "BattleViewUISystem/BUIWazaList": width,
+            # The Pokédex details body is a centered 1280-wide coordinate
+            # group. Its right-anchored fields otherwise lag behind the
+            # widened header.
+            "Zukan/Window/ZukanDescriptionPanel/FixedObjects/StatusPanel": width,
+            "ZukanRegister/Window/ZukanDescriptionPanel/FixedObjects/StatusPanel": width,
+            # Match the party screen's backing width, leaving the same margin
+            # beyond the cards while keeping their authored left inset.
+            "Bag/Window/Image_PartyPlate": 532.0,
+            # Battle party details still need the widened backing panel.
+            "PokemonBattle/Window/BG/Image_plate": 481.0 + half,
+            # Keep the original right edge; grow leftward with the canvas.
+            "Map/Window/Map/Object_Map/Body/Image_Base": 1500.0 + half - 2.0,
+        }
+
+        # The Pokédex header art stretches with the widened window. Its
+        # centered labels must follow the same horizontal ratio to stay on the
+        # printed pills.
+        self.position_x_multipliers = {
+            path: self.x_scale
+            for path in (
+                "Zukan/Window/Header/Image_Title",
+                "Zukan/Window/Header/GetPokeCountText",
+                "Zukan/Window/Header/FoundPokeCountText",
+                "Zukan/Window/Header/SortNameText",
+            )
+        }
 
 
 def near(a: float, b: float, tolerance: float = 0.01) -> bool:
@@ -371,6 +435,34 @@ def uint32_to_float(value: int) -> float:
 
 def float_to_uint32(value: float) -> int:
     return struct.unpack("<I", struct.pack("<f", value))[0]
+
+
+def mov_w(register: int, value: int) -> str:
+    """Encode movz wN,#value as a little-endian pchtxt word."""
+    if not 0 <= value <= 0xFFFF:
+        raise ValueError(f"movz immediate out of range: {value}")
+    return struct.pack("<I", 0x52800000 | (value << 5) | register).hex().upper()
+
+
+def mov_float_w8(value: float, rounded: bool = False) -> str:
+    """Encode movz w8,#hi,lsl #16 holding a float's upper 16 bits."""
+    bits = float_to_uint32(value)
+    if rounded:
+        bits = (bits + 0x8000) & 0xFFFF0000
+    elif bits & 0xFFFF:
+        raise ValueError(f"Float needs a two-instruction load: {value}")
+    return struct.pack("<I", 0x52A00008 | ((bits >> 16) << 5)).hex().upper()
+
+
+def fmov_s0_at_least(value: float) -> tuple[str, float]:
+    """Encode fmov s0,#imm with the smallest immediate not below value."""
+    def expand(imm8: int) -> float:
+        b = (imm8 >> 6) & 1
+        exponent = ((b ^ 1) << 7) | (0x7C if b else 0) | ((imm8 >> 4) & 3)
+        return (1.0 + (imm8 & 0xF) / 16.0) * 2.0 ** (exponent - 127)
+
+    imm8 = min((i for i in range(128) if expand(i) >= value), key=expand)
+    return struct.pack("<I", 0x1E201000 | (imm8 << 13)).hex().upper(), expand(imm8)
 
 
 def offset_animation_curve(clip, curve_index: int, offset: float) -> None:
@@ -499,7 +591,7 @@ def patch_exp_backdrop(env) -> list[dict]:
              "action": "texture_printed_slots_left_24_down_65_restore_border"}]
 
 
-def patch_bundle(source: Path, destination: Path) -> list[dict]:
+def patch_bundle(source: Path, destination: Path, layout: Layout) -> list[dict]:
     env = UnityPy.load(str(source))
     changes = []
 
@@ -516,12 +608,12 @@ def patch_bundle(source: Path, destination: Path) -> list[dict]:
         if path in STRETCH_PATHS:
             action = "stretch_explicit"
             stretch(rect)
-        elif path in FIXED_RECT_SIZE_OVERRIDES:
-            width, height = FIXED_RECT_SIZE_OVERRIDES[path]
+        elif path in layout.fixed_rect_size_overrides:
+            width, height = layout.fixed_rect_size_overrides[path]
             set_fixed_centered_size(rect, width, height)
             action = f"fixed_centered_size_{width:g}x{height:g}"
-            if path in ANCHORED_POSITION_X_OFFSETS:
-                offset = ANCHORED_POSITION_X_OFFSETS[path]
+            if path in layout.anchored_position_x_offsets:
+                offset = layout.anchored_position_x_offsets[path]
                 rect.m_AnchoredPosition.x += offset
                 action += f"_position_x_plus_{offset:g}"
         elif path in LOCAL_SCALE_POLICIES:
@@ -534,31 +626,31 @@ def patch_bundle(source: Path, destination: Path) -> list[dict]:
                 rect.m_AnchoredPosition.x, rect.m_AnchoredPosition.y = (
                     ANCHORED_POSITION_OVERRIDES[path]
                 )
-            if path in ANCHORED_POSITION_X_OFFSETS:
-                rect.m_AnchoredPosition.x += ANCHORED_POSITION_X_OFFSETS[path]
+            if path in layout.anchored_position_x_offsets:
+                rect.m_AnchoredPosition.x += layout.anchored_position_x_offsets[path]
             action = f"local_scale_{sx:g}x{sy:g}"
         elif path in ANCHORED_POSITION_OVERRIDES:
             x, y = ANCHORED_POSITION_OVERRIDES[path]
             rect.m_AnchoredPosition.x = x
             rect.m_AnchoredPosition.y = y
             action = f"position_{x:g}_{y:g}"
-        elif path in SIZE_X_OVERRIDES:
-            rect.m_SizeDelta.x = SIZE_X_OVERRIDES[path]
-            action = f"size_x_{SIZE_X_OVERRIDES[path]:g}"
-            if path in ANCHORED_POSITION_X_OFFSETS:
-                offset = ANCHORED_POSITION_X_OFFSETS[path]
+        elif path in layout.size_x_overrides:
+            rect.m_SizeDelta.x = layout.size_x_overrides[path]
+            action = f"size_x_{layout.size_x_overrides[path]:g}"
+            if path in layout.anchored_position_x_offsets:
+                offset = layout.anchored_position_x_offsets[path]
                 rect.m_AnchoredPosition.x += offset
                 action += f"_position_x_plus_{offset:g}"
-        elif path in ANCHORED_POSITION_X_OFFSETS:
-            offset = ANCHORED_POSITION_X_OFFSETS[path]
+        elif path in layout.anchored_position_x_offsets:
+            offset = layout.anchored_position_x_offsets[path]
             rect.m_AnchoredPosition.x += offset
-            if path in BATTLE_INTRO_BALL_X_OFFSETS:
+            if path in layout.battle_intro_ball_x_offsets:
                 # Keep the serialized transform position consistent with the
                 # rect position before battle startup caches local transforms.
                 rect.m_LocalPosition.x += offset
             action = f"position_x_plus_{offset:g}"
-        elif path in POSITION_X_MULTIPLIERS:
-            multiplier = POSITION_X_MULTIPLIERS[path]
+        elif path in layout.position_x_multipliers:
+            multiplier = layout.position_x_multipliers[path]
             rect.m_AnchoredPosition.x *= multiplier
             action = f"position_x_times_{multiplier:g}"
         elif path in EDGE_POLICIES:
@@ -712,7 +804,7 @@ def patch_bundle(source: Path, destination: Path) -> list[dict]:
                     and binding.typeID == 224
                     and binding.attribute == 1460864421  # m_AnchoredPosition.x
                 ):
-                    offset = ANCHORED_POSITION_X_OFFSETS["Poketch/Window"]
+                    offset = layout.anchored_position_x_offsets["Poketch/Window"]
                     offset_animation_curve(clip, curve_index, offset)
                     changes.append(
                         {
@@ -728,10 +820,10 @@ def patch_bundle(source: Path, destination: Path) -> list[dict]:
         target_indices = [
             index
             for index, binding in enumerate(bindings)
-            if binding.path in ANIMATION_X_OFFSETS_BY_PATH_HASH
+            if binding.path in layout.animation_x_offsets_by_path_hash
             and binding.typeID == 224
             and clip.m_Name.startswith(
-                ANIMATION_X_OFFSETS_BY_PATH_HASH[binding.path][1]
+                layout.animation_x_offsets_by_path_hash[binding.path][1]
             )
         ]
         if not target_indices:
@@ -742,7 +834,7 @@ def patch_bundle(source: Path, destination: Path) -> list[dict]:
                 f"{len(bindings)} bindings, {len(values)} values"
             )
         for index in target_indices:
-            offset = ANIMATION_X_OFFSETS_BY_PATH_HASH[bindings[index].path][0]
+            offset = layout.animation_x_offsets_by_path_hash[bindings[index].path][0]
             offset_animation_curve(clip, index, offset)
             changes.append(
                 {
@@ -794,7 +886,7 @@ def patch_resources(source: Path, destination: Path) -> list[dict]:
     return changes
 
 
-def patch_encounter_effect(source: Path, destination: Path) -> list[dict]:
+def patch_encounter_effect(source: Path, destination: Path, layout: Layout) -> list[dict]:
     """Widen fixed-width encounter and Hidden Move screen layers.
 
     Field transitions and battle setup effects use size3D billboards exactly
@@ -817,11 +909,11 @@ def patch_encounter_effect(source: Path, destination: Path) -> list[dict]:
         if name != "back" and not near(old_size_x, 3.6):
             continue
         if name in ENCOUNTER_BAND_NAMES and near(old_size_x, 3.6):
-            initial.startSize.scalar = ENCOUNTER_BAND_WIDTH
-            action = f"start_size_x_{ENCOUNTER_BAND_WIDTH:g}"
+            initial.startSize.scalar = layout.encounter_band_width
+            action = f"start_size_x_{layout.encounter_band_width:g}"
         else:
-            initial.startSize.scalar = old_size_x * ULTRAWIDE_X_SCALE
-            action = f"start_size_x_times_{ULTRAWIDE_X_SCALE:g}"
+            initial.startSize.scalar = old_size_x * layout.x_scale
+            action = f"start_size_x_times_{layout.x_scale:g}"
         particle.save()
         changes.append(
             {
@@ -862,13 +954,26 @@ def patch_demo_overlay(source: Path, destination: Path, overlay_name: str) -> li
     return changes
 
 
-def write_exefs_patch(source: Path, destination: Path) -> None:
+def write_exefs_patch(source: Path, destination: Path, layout: Layout) -> None:
     text = source.read_text(encoding="utf-8")
     marker = "@stop"
     if marker not in text:
         raise ValueError(f"Missing {marker} in {source}")
+    output_width = layout.target.width
+    # The upstream patch hardcodes its 3440-pixel output width.
+    upstream_width = re.compile(r"^([0-9A-F]{8}) ([0-9A-F]{8}) // mov w(\d+),#0xD70.*$", re.MULTILINE)
+    def replace_width(match: re.Match) -> str:
+        address, word, register = match[1], match[2], int(match[3])
+        if word != mov_w(register, 3440):
+            raise ValueError(f"Unexpected upstream output-width patch: {match[0]}")
+        return f"{address} {mov_w(register, output_width)} // mov w{register},#{output_width}"
+
+    text, count = upstream_width.subn(replace_width, text)
+    if count != 4:
+        raise ValueError(f"Expected 4 upstream output-width patches, found {count}")
     old_model_bg = "0137E5B8 0010201E // background root X = 2"
-    new_model_bg = "0137E5B8 00D0201E // background root X = 2.75 (ultrawide coverage)"
+    model_bg, model_bg_scale = fmov_s0_at_least(CANVAS_SCALE * layout.x_scale)
+    new_model_bg = f"0137E5B8 {model_bg} // background root X = {model_bg_scale:g} (ultrawide coverage)"
     if old_model_bg not in text:
         raise ValueError("Missing expected Pokémon model-background scale patch")
     text = text.replace(old_model_bg, new_model_bg, 1)
@@ -887,12 +992,6 @@ def write_exefs_patch(source: Path, destination: Path) -> None:
     # reach are in physical pixels: authored units * 2x CanvasScaler * scale.
     # The upstream patch assumes scale=1, leaving a much larger clamp box
     # than the visible display after shrinking the complete watch to fit.
-    def mov_float_w8(value: float) -> str:
-        bits = float_to_uint32(value)
-        if bits & 0xFFFF:
-            raise ValueError(f"Poketch bound needs a two-instruction float: {value}")
-        return struct.pack("<I", 0x52A00008 | ((bits >> 16) << 5)).hex().upper()
-
     replacements = (
         ("01E698B0 1F2003D5", f"01E698B0 {mov_float_w8(640 * POKETCH_LARGE_SCALE)}"),
         ("01E698C8 1F2003D5", f"01E698C8 {mov_float_w8(480 * POKETCH_LARGE_SCALE)}"),
@@ -903,19 +1002,24 @@ def write_exefs_patch(source: Path, destination: Path) -> None:
         if old not in text:
             raise ValueError(f"Missing expected Poketch patch: {old}")
         text = re.sub(re.escape(old) + r"[^\n]*", new + " // resized Poketch screen-space extent", text, count=1)
-    additions = """// DemoCamera.CreateRenderTex hardcodes 1280x720 for evolution and other
+    logical_width = layout.width
+    bag_dialog_x = 260.0 - layout.half_extra
+    # Touch scaling has no spare cave room for a second float instruction;
+    # the rounded factor is within 0.2% of the exact ratio.
+    touch_scale = output_width / REFERENCE_WIDTH
+    additions = f"""// DemoCamera.CreateRenderTex hardcodes 1280x720 for evolution and other
 // shared demos. Render at the full output size; the camera's target texture
 // supplies the wider aspect while preserving vertical framing.
-01AC8A4C 01AE8152 // mov w1,#3440 (render texture width)
-01AC8A50 02B48052 // mov w2,#1440 (render texture height)
+01AC8A4C {mov_w(1, output_width)} // mov w1,#{output_width} (render texture width)
+01AC8A50 {mov_w(2, OUTPUT_HEIGHT)} // mov w2,#{OUTPUT_HEIGHT} (render texture height)
 // DemoSceneManager.CommonInit creates a centered RawImage at 1280x720.
 // CanvasScaler already matches height through the upstream patch, so use
-// 1720x720 logical units to display 3440x1440 without stretching the Pokemon.
-01ACA350 E89AA852 // mov w8,#0x44D70000 (1720.0f display width)
+// {logical_width:g}x720 logical units to display {output_width}x{OUTPUT_HEIGHT} without stretching the Pokemon.
+01ACA350 {mov_float_w8(logical_width)} // mov w8,{logical_width:g}f (display width)
 // Bag.OpOpen supplies its own shared-message-window anchor (260, 110).
 // Shift the complete Bag dialog left by half the added canvas width; keep
 // its vertical anchor and all other screens' message windows unchanged.
-01BE2DC0 0844A852 // mov w8,#0x42200000; Bag dialog X = 40 instead of 260
+01BE2DC0 {mov_float_w8(bag_dialog_x)} // mov w8,{bag_dialog_x:g}f; Bag dialog X instead of 260
 // Full-width encounter band coverage
 // Double the RawImage rect dimensions before creating its RenderTexture.
 01A30B38 1637E597 // BL 0x0137E790
@@ -925,18 +1029,18 @@ def write_exefs_patch(source: Path, destination: Path) -> None:
 0137E79C C0035FD6 // ret
 // BattlePostProcessFilter creates the DOF/composite texture used during
 // trainer and Pokemon entrance sequences. These RenderTextures use physical
-// pixels rather than the 1720-unit UI canvas, so request the mod's full 3440
-// output width while retaining the runtime-provided 1440 height.
-01E4917C 01AE8152 // mov w1,#3440
+// pixels rather than the {logical_width:g}-unit UI canvas, so request the mod's full
+// {output_width} output width while retaining the runtime-provided height.
+01E4917C {mov_w(1, output_width)} // mov w1,#{output_width}
 // BattleMultipleCameraCompositor creates the color, depth, and copied-depth
 // inputs consumed by the post-process filter. Widen all three source targets
 // to the same physical width. Using the logical width here would stretch a
 // half-resolution 3D scene across the physical output.
-01F7C5AC 01AE8152 // color target: mov w1,#3440
-01F7C60C 01AE8152 // depth target: mov w1,#3440
-01F7C670 01AE8152 // copied depth target: mov w1,#3440
+01F7C5AC {mov_w(1, output_width)} // color target: mov w1,#{output_width}
+01F7C60C {mov_w(1, output_width)} // depth target: mov w1,#{output_width}
+01F7C670 {mov_w(1, output_width)} // copied depth target: mov w1,#{output_width}
 // Poketch touch input: Switch touch coordinates remain 1280x720 even when
-// the render output is 3440x1440. Scale the GetTouch position only; mouse
+// the render output is {output_width}x{OUTPUT_HEIGHT}. Scale the GetTouch position only; mouse
 // input and gamepad cursor positions already use rendered screen pixels.
 01E67858 E35BD497 // Touch.get_position -> scaled touch helper
 01E698B4 0801271E // half-width constant: fmov s8,w8
@@ -945,9 +1049,9 @@ def write_exefs_patch(source: Path, destination: Path) -> None:
 // end before the next function at 0x0137E824.
 0137E7E4 FD7BBFA9 // save LR
 0137E7E8 4AB76294 // Touch.get_position
-0137E7EC 8805A852 // mov w8,#0x402c0000 (3440/1280 = 2.6875)
+0137E7EC {mov_float_w8(touch_scale, rounded=True)} // mov w8,~{touch_scale:g}f ({output_width}/1280)
 0137E7F0 0201271E // fmov s2,w8
-0137E7F4 0008221E // touch X *= 2.6875
+0137E7F4 0008221E // touch X *= output width / 1280
 0137E7F8 2128211E // touch Y *= 2
 0137E7FC FD7BC1A8 // restore LR
 0137E800 C0035FD6 // ret
@@ -973,7 +1077,8 @@ def write_exefs_patch(source: Path, destination: Path) -> None:
     destination.write_text(text.replace(marker, additions + marker, 1), encoding="utf-8")
 
 
-def build(romfs: Path, pchtxt: Path, output: Path) -> dict:
+def build(romfs: Path, pchtxt: Path, output: Path, target: Target) -> dict:
+    layout = Layout(target)
     source_ui = (
         romfs
         / "Data"
@@ -994,7 +1099,7 @@ def build(romfs: Path, pchtxt: Path, output: Path) -> dict:
     bundle_counts = defaultdict(int)
     for source in sorted(path for path in source_ui.rglob("*") if path.is_file()):
         relative = source.relative_to(source_ui)
-        changes = patch_bundle(source, output_ui / relative)
+        changes = patch_bundle(source, output_ui / relative, layout)
         all_changes.extend(changes)
         if changes:
             bundle_counts[str(relative)] = len(changes)
@@ -1036,6 +1141,7 @@ def build(romfs: Path, pchtxt: Path, output: Path) -> dict:
         changes = patch_encounter_effect(
             source,
             output_battle_effects_root / source.name,
+            layout,
         )
         all_changes.extend(changes)
         if changes:
@@ -1059,6 +1165,7 @@ def build(romfs: Path, pchtxt: Path, output: Path) -> dict:
         changes = patch_encounter_effect(
             source,
             output_field_effects_root / source.name,
+            layout,
         )
         all_changes.extend(changes)
         if changes:
@@ -1078,15 +1185,15 @@ def build(romfs: Path, pchtxt: Path, output: Path) -> dict:
         bundle_counts[str(relative)] = len(changes)
 
     exefs = output / "exefs"
-    write_exefs_patch(pchtxt, exefs / pchtxt.name)
+    write_exefs_patch(pchtxt, exefs / pchtxt.name, layout)
 
     attribution = Path(__file__).resolve().parents[1] / "ATTRIBUTION.md"
     (output / "ATTRIBUTION.md").write_bytes(attribution.read_bytes())
 
     (output / "README.md").write_text(
-        """# True Ultrawide UI 3440x1440 21:9
+        f"""# {target.name}
 
-For Pokémon Brilliant Diamond 1.3.0 at 3440×1440, tested locally in Eden.
+For Pokémon Brilliant Diamond 1.3.0 at {target.width}×{OUTPUT_HEIGHT} ({target.ratio}), for Eden.
 
 ## Credits
 
@@ -1099,7 +1206,7 @@ See [source attribution](ATTRIBUTION.md) for the upstream file and revision.
 ## Installation
 
 Copy this directory into your emulator's mod directory as
-`True Ultrawide UI 3440x1440 21:9`. Restart the game after installing.
+`{target.name}`. Restart the game after installing.
 Enable **stretch to window** and the **8 GB RAM layout** in Eden.
 Enable this mod on its own; the upstream ultrawide ExeFS patch is included.
 
@@ -1119,6 +1226,8 @@ The generated asset changes are listed in `ui_patch_manifest.json`.
         change["bundle"] = Path(change["bundle"]).relative_to(romfs).as_posix()
     manifest = {
         "reference_resolution": [REFERENCE_WIDTH, REFERENCE_HEIGHT],
+        "output_resolution": [target.width, OUTPUT_HEIGHT],
+        "canvas_resolution": [layout.width, REFERENCE_HEIGHT],
         "changed_bundle_count": len(bundle_counts),
         "changed_transform_count": len(all_changes),
         "bundle_counts": dict(bundle_counts),
@@ -1135,22 +1244,27 @@ def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--romfs", required=True, type=Path)
     parser.add_argument("--pchtxt", required=True, type=Path)
-    parser.add_argument("--output", required=True, type=Path)
+    parser.add_argument("--dist", required=True, type=Path,
+                        help="directory receiving one mod directory per target")
+    parser.add_argument("--target", action="append", choices=TARGETS,
+                        help="aspect ratio to build; repeatable (default: all)")
     args = parser.parse_args()
-    output = args.output.resolve()
-    # Build into a fresh directory so files from earlier builds never ship.
-    with staged_directory(output) as staged:
-        manifest = build(args.romfs.resolve(), args.pchtxt, staged)
-    print(
-        json.dumps(
-            {
-                "output": str(output),
-                "changed_bundle_count": manifest["changed_bundle_count"],
-                "changed_transform_count": manifest["changed_transform_count"],
-            },
-            indent=2,
+    for ratio in args.target or TARGETS:
+        target = TARGETS[ratio]
+        output = (args.dist / target.name).resolve()
+        # Build into a fresh directory so files from earlier builds never ship.
+        with staged_directory(output) as staged:
+            manifest = build(args.romfs.resolve(), args.pchtxt, staged, target)
+        print(
+            json.dumps(
+                {
+                    "output": str(output),
+                    "changed_bundle_count": manifest["changed_bundle_count"],
+                    "changed_transform_count": manifest["changed_transform_count"],
+                },
+                indent=2,
+            )
         )
-    )
 
 
 if __name__ == "__main__":

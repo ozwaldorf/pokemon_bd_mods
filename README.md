@@ -12,7 +12,7 @@ every game state. These mods are experimental; keep backups of your saves.
 
 | Directory | Project |
 | --- | --- |
-| [ultrawide/](ultrawide/README.md) | True Ultrawide UI 3440x1440 21:9 mod and build tools |
+| [ultrawide/](ultrawide/README.md) | True Ultrawide UI mods for 21:9 (3440x1440) and 20.1:9 (3216x1440), with build tools |
 | [hidden-moves/](hidden-moves/README.md) | Party Pokémon hidden-move previews and dialogue, plus Surf, Waterfall, Rock Climb, and Fly mounts |
 | [skip-intro/](skip-intro/README.md) | Skip the startup intro movie and title screen, then load automatically |
 | `dumps/` | Shared private base/update NSPs and `prod.keys` |
