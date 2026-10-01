@@ -149,7 +149,7 @@ def placements(source: Path, target: Path) -> None:
 
 
 def check_ultrawide_overlap(hooks: dict) -> None:
-    patches = PROJECT.parent / "dist/3440x1440 21.9 Complete UI v1.3.0/exefs"
+    patches = PROJECT.parent / "dist/True Ultrawide UI 3440x1440 21:9/exefs"
     if not patches.exists():
         return
     def check_range(path: Path, offset: int, length: int) -> None:

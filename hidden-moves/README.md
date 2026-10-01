@@ -29,8 +29,6 @@ For Pokémon Brilliant Diamond 1.3.0, tested locally in Eden.
 - Verify Fly takeoff and landing in Eden, then tune placements and animations
   for individual Pokémon. Fly currently uses a shared initial placement.
 - Refine Rock Climb placements and check wall clearance in both directions.
-- Verify movement, full animation cycles, battles, area changes, and save reloads
-  across the supported models. Surf checks so far mainly cover stationary fit.
 - Make the player follow the mount's idle bobbing.
 - Replace helper names in dialogue outside English.
 
@@ -59,11 +57,6 @@ just setup
 just extract
 ```
 
-The build and live tuning tools use `extracted/exefs/main` and
-`extracted/romfs/Data/`. This extraction is shared with ultrawide; if you
-already created it, reuse it. Keep these original files untouched. Private
-dumps, keys, extracted files, and generated output are Git-ignored.
-
 ### Build and install
 
 Run these commands from the repository root, inside the development shell:
@@ -75,15 +68,14 @@ just install-hidden-moves
 
 The build fetches the pinned ExLaunch framework and uses the Switch toolchain
 provided by Nix, then writes the generated mod to `dist/Party Hidden Moves v1.3.0/`. Installation
-copies it to
-`~/.local/share/eden/load/0100000011D90000/Party Hidden Moves v1.3.0/`.
+copies it to `~/.local/share/eden/load/0100000011D90000/Party Hidden Moves v1.3.0/`.
 Restart the game after installing.
 
 `just debug-hidden-moves set ...` creates the live debug configuration. The
 mod reads it at startup and at each traversal cut-in, and polls it while
 enabled. Changes made while disabled apply at the next cut-in.
-Use `just debug-hidden-moves --move fly set --model 398` to tune Fly. Overrides
-apply to their selected move; Surf settings also cover Waterfall.
+Use `just debug-hidden-moves --move fly set --model 398` to tune Fly.
+Overrides apply to their selected move; Surf settings also cover Waterfall.
 
 Use `just check` to syntax-check the Python scripts and `just test-hidden-moves` to run the
 native lifecycle checks with a mocked engine boundary.

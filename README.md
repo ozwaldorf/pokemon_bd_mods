@@ -1,6 +1,6 @@
-# Pokémon Brilliant Diamond mods
+# Pokémon Brilliant Diamond Mods
 
-Separate mod projects targeting Brilliant Diamond v1.3.0:
+Various mod projects targeting Brilliant Diamond v1.3.0
 
 ## AI assistance disclaimer
 
@@ -12,7 +12,7 @@ every game state. These mods are experimental; keep backups of your saves.
 
 | Directory | Project |
 | --- | --- |
-| [ultrawide/](ultrawide/README.md) | Existing 3440×1440 ultrawide UI mod and build tools |
+| [ultrawide/](ultrawide/README.md) | True Ultrawide UI 3440x1440 21:9 mod and build tools |
 | [hidden-moves/](hidden-moves/README.md) | Party Pokémon hidden-move previews and dialogue, plus Surf, Waterfall, Rock Climb, and Fly mounts |
 | `dumps/` | Shared private base/update NSPs and `prod.keys` |
 | `extracted/` | Shared untouched merged ExeFS and RomFS |
@@ -26,21 +26,11 @@ every game state. These mods are experimental; keep backups of your saves.
 - Your own `prod.keys` that can decrypt both NSPs.
 - Disk space for the dumps, intermediate extraction, and merged game files.
 
-Both projects target title `0100000011D90000`, version `1.3.0`, build
-`94CEAE325C205C4B9D6F7235552F28FD`.
+Both projects target title `0100000011D90000`, version `1.3.0`, build `94CEAE325C205C4B9D6F7235552F28FD`.
 
 ### Install the dumps and keys
 
-From the repository root, copy your existing dumps and keys into `dumps/`.
-Adjust the source paths below to wherever you saved your files:
-
-```sh
-mkdir -p dumps
-cp ~/switch-dumps/base.nsp dumps/base.nsp
-cp ~/switch-dumps/update.nsp dumps/update.nsp
-cp ~/switch-dumps/prod.keys dumps/prod.keys
-```
-
+From the repository root, copy your existing dumps and keys into a new folder `./dumps/`.
 The destination filenames must match exactly:
 
 ```text
@@ -73,11 +63,6 @@ extracted/
     └── Data/
 ```
 
-An existing extraction is replaced only after the new extraction succeeds.
-If an input is missing, check the filenames in `dumps/`. Decryption errors
-require keys that match your dumps. Run extraction inside `nix develop` so
-`hactoolnet` is available. Keep `extracted/` untouched; builds write to `dist/`.
-
 ### Build a project
 
 Stay in the development shell at the repository root and choose one project:
@@ -88,7 +73,6 @@ just build-hidden-moves
 ```
 
 All commands run from the repository root; `just --list` shows them all.
-Both projects share the root Python environment.
 Generated mods are written to `dist/`, one directory per mod named as Eden
 expects, so each can be copied directly into the load directory.
 See the [ultrawide instructions](ultrawide/README.md#development) or
@@ -96,8 +80,7 @@ See the [ultrawide instructions](ultrawide/README.md#development) or
 installation, and in-game testing.
 
 `just install-ultrawide` and `just install-hidden-moves` install into local Eden at
-`~/.local/share/eden/load/0100000011D90000/`. Restart the game after
-installing a new build.
+`~/.local/share/eden/load/0100000011D90000/`.
 
 Private game files, keys, virtual environments, and generated output are
 Git-ignored. Do not commit or distribute game dumps or keys.

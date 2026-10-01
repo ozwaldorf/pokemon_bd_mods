@@ -1,6 +1,6 @@
 set shell := ["bash", "-euo", "pipefail", "-c"]
 
-dist_ultrawide := "dist/3440x1440 21.9 Complete UI v1.3.0"
+dist_ultrawide := "dist/True Ultrawide UI 3440x1440 21:9"
 dist_hidden_moves := "dist/Party Hidden Moves v1.3.0"
 device_load := "/sdcard/Android/data/dev.eden.eden_emulator.nightly/files/load/0100000011D90000"
 

@@ -1,4 +1,4 @@
-# Ultrawide UI for Pokémon Brilliant Diamond
+# True Ultrawide UI 3440x1440 21:9
 
 For Pokémon Brilliant Diamond 1.3.0 at 3440×1440, tested locally in Eden.
 
@@ -32,11 +32,6 @@ verified revision. Attribution is included in the generated mod.
 - Capsule selection, previews, and sticker placement are aligned in 2D and 3D.
 - Encounter transitions and Hidden Move backdrops cover the full width.
 
-## Remaining
-
-- Check other game states and UI layouts for clipping and alignment.
-- Verify interactions and transitions beyond the screens tested locally.
-
 ## Development
 
 ### Install the dumps and keys
@@ -62,11 +57,6 @@ just setup
 just extract
 ```
 
-The patch scripts use `extracted/exefs/main` and
-`extracted/romfs/Data/`. This extraction is shared with hidden-moves; if you
-already created it, reuse it. Keep these original files untouched. Private
-dumps, keys, extracted files, and generated output are Git-ignored.
-
 ### Build and install
 
 Run these commands from the repository root, inside the development shell:
@@ -77,9 +67,8 @@ just install-ultrawide
 ```
 
 The build patches the original UI assets and includes
-`ultrawide-v1.3.0.pchtxt`, then writes the generated mod to `dist/3440x1440 21.9 Complete UI v1.3.0/`.
-Installation copies it to
-`~/.local/share/eden/load/0100000011D90000/3440x1440 21.9 Complete UI v1.3.0/`.
+`ultrawide-v1.3.0.pchtxt`, then writes the generated mod to `dist/True Ultrawide UI 3440x1440 21:9/`.
+Installation copies it to `~/.local/share/eden/load/0100000011D90000/True Ultrawide UI 3440x1440 21:9/`.
 Restart the game after installing. Enable **stretch to window** and the
 **8 GB RAM layout** in Eden. Enable this mod on its own; the upstream
 ultrawide patch is already included.
@@ -100,6 +89,5 @@ adb devices
 just push-ultrawide
 ```
 
-This installs the built mod under
-`/sdcard/Android/data/dev.eden.eden_emulator.nightly/files/load/0100000011D90000/3440x1440 21.9 Complete UI v1.3.0/`.
+This installs the built mod under `/sdcard/Android/data/dev.eden.eden_emulator.nightly/files/load/0100000011D90000/True Ultrawide UI 3440x1440 21:9/`.
 Use `just capture` to save a screenshot to a temporary directory.

@@ -1036,7 +1036,7 @@ def build(romfs: Path, pchtxt: Path, output: Path) -> dict:
     (output / "ATTRIBUTION.md").write_bytes(attribution.read_bytes())
 
     (output / "README.md").write_text(
-        """# Ultrawide UI for Pokémon Brilliant Diamond
+        """# True Ultrawide UI 3440x1440 21:9
 
 For Pokémon Brilliant Diamond 1.3.0 at 3440×1440, tested locally in Eden.
 
@@ -1051,7 +1051,7 @@ See [source attribution](ATTRIBUTION.md) for the upstream file and revision.
 ## Installation
 
 Copy this directory into your emulator's mod directory as
-`3440x1440 21.9 Complete UI v1.3.0`. Restart the game after installing.
+`True Ultrawide UI 3440x1440 21:9`. Restart the game after installing.
 Enable **stretch to window** and the **8 GB RAM layout** in Eden.
 Enable this mod on its own; the upstream ultrawide ExeFS patch is included.
 
