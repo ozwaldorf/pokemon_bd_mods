@@ -2,6 +2,18 @@
 
 For Pokémon Brilliant Diamond 1.3.0 at 3440×1440, tested locally in Eden.
 
+## Previews
+
+| Main menu | Pokédex |
+| --- | --- |
+| ![Ultrawide main menu](docs/menu.png) | ![Ultrawide Pokédex](docs/pokedex.png) |
+| Party | Bag |
+| ![Ultrawide party screen](docs/party.png) | ![Ultrawide bag](docs/bag.png) |
+| Battle intro | Battle menu |
+| ![Ultrawide battle intro](docs/battle_intro.png) | ![Ultrawide battle menu](docs/battle_menu.png) |
+| Town map | |
+| ![Ultrawide town map](docs/map.png) | |
+
 ## Credits
 
 The original ultrawide ExeFS patch is by

@@ -238,8 +238,9 @@ SIZE_X_OVERRIDES = {
     # right-anchored fields otherwise lag 220 units behind the widened header.
     "Zukan/Window/ZukanDescriptionPanel/FixedObjects/StatusPanel": 1720.0,
     "ZukanRegister/Window/ZukanDescriptionPanel/FixedObjects/StatusPanel": 1720.0,
-    # The Bag and Pokemon party lists now retain their original left inset,
-    # so their paper panels keep their authored widths (488 and 532).
+    # Match the party screen's backing width, leaving the same margin beyond
+    # the cards while keeping their authored left inset.
+    "Bag/Window/Image_PartyPlate": 532.0,
     # Battle party details still need the widened backing panel.
     "PokemonBattle/Window/BG/Image_plate": 701.0,
     # Its original right edge is already at X=1718 on the ultrawide canvas.
